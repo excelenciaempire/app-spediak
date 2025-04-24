@@ -6,7 +6,6 @@ import {
   DrawerItem,
   DrawerContentComponentProps,
 } from '@react-navigation/drawer';
-import { NavigationContainer } from '@react-navigation/native';
 import { View, Text, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,16 +30,12 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
 
-  // Placeholder for state - retrieve from user.unsafeMetadata later if implemented
-  const userState = user?.unsafeMetadata?.inspectionState as string || 'North Carolina'; // Default placeholder
+  // Retrieve user state
+  const userState = user?.unsafeMetadata?.inspectionState as string || 'North Carolina';
 
   if (!isLoaded) {
-    // Optional: Show a loading indicator or skeleton
-    return (
-        <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-    );
+    // Render nothing while Clerk is loading user data
+    return null;
   }
 
   return (
@@ -78,58 +73,56 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
 // Root Navigator Setup (Step 17)
 const RootNavigator: React.FC = () => {
   return (
-    <NavigationContainer>
-        <Drawer.Navigator
-            initialRouteName="NewInspection"
-            drawerContent={(props: DrawerContentComponentProps) => <CustomDrawerContent {...props} />} // Use Custom Drawer (Step 19)
-            screenOptions={{
-                headerStyle: {
-                    backgroundColor: COLORS.primary,
-                },
-                headerTintColor: COLORS.white,
-                headerTitleStyle: {
-                    fontWeight: 'bold',
-                },
-                drawerActiveTintColor: COLORS.primary,
-                drawerInactiveTintColor: COLORS.darkText,
-                 drawerLabelStyle: {
-                    marginLeft: -20, // Adjust icon spacing if needed
-                    fontSize: 16,
-                 }
+    <Drawer.Navigator
+        initialRouteName="NewInspection"
+        drawerContent={(props: DrawerContentComponentProps) => <CustomDrawerContent {...props} />} // Use Custom Drawer (Step 19)
+        screenOptions={{
+            headerStyle: {
+                backgroundColor: COLORS.primary,
+            },
+            headerTintColor: COLORS.white,
+            headerTitleStyle: {
+                fontWeight: 'bold',
+            },
+            drawerActiveTintColor: COLORS.primary,
+            drawerInactiveTintColor: COLORS.darkText,
+             drawerLabelStyle: {
+                marginLeft: -20, // Adjust icon spacing if needed
+                fontSize: 16,
+             }
+        }}
+        >
+        <Drawer.Screen
+            name="NewInspection"
+            component={NewInspectionScreen}
+            options={{
+                title: 'New Inspection',
+                drawerIcon: ({ color, size }: { color: string; size: number }) => (
+                    <Ionicons name="add-circle-outline" color={color} size={size} />
+                ),
             }}
-            >
-            <Drawer.Screen
-                name="NewInspection"
-                component={NewInspectionScreen}
-                options={{
-                    title: 'New Inspection',
-                    drawerIcon: ({ color, size }: { color: string; size: number }) => (
-                        <Ionicons name="add-circle-outline" color={color} size={size} />
-                    ),
-                }}
-            />
-            <Drawer.Screen
-                name="InspectionHistory"
-                component={InspectionHistoryScreen}
-                options={{
-                    title: 'Inspection History',
-                    drawerIcon: ({ color, size }: { color: string; size: number }) => (
-                        <Ionicons name="time-outline" color={color} size={size} />
-                    ),
-                }}
-            />
-            <Drawer.Screen
-                name="ProfileSettings"
-                component={ProfileSettingsScreen}
-                options={{
-                    title: 'Profile',
-                    drawerIcon: ({ color, size }: { color: string; size: number }) => (
-                        <Ionicons name="person-circle-outline" color={color} size={size} />
-                    ),
-                }}
-            />
-        </Drawer.Navigator>
-    </NavigationContainer>
+        />
+        <Drawer.Screen
+            name="InspectionHistory"
+            component={InspectionHistoryScreen}
+            options={{
+                title: 'Inspection History',
+                drawerIcon: ({ color, size }: { color: string; size: number }) => (
+                    <Ionicons name="time-outline" color={color} size={size} />
+                ),
+            }}
+        />
+        <Drawer.Screen
+            name="ProfileSettings"
+            component={ProfileSettingsScreen}
+            options={{
+                title: 'Profile',
+                drawerIcon: ({ color, size }: { color: string; size: number }) => (
+                    <Ionicons name="person-circle-outline" color={color} size={size} />
+                ),
+            }}
+        />
+    </Drawer.Navigator>
   );
 };
 

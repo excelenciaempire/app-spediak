@@ -2,6 +2,7 @@ import { ClerkProvider, SignedIn, SignedOut } from "@clerk/clerk-expo";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from 'expo-status-bar';
+import { NavigationContainer } from '@react-navigation/native';
 import { StyleSheet, Text, View } from 'react-native';
 import AuthNavigator from "./src/navigation/AuthNavigator"; // Revert path
 import RootNavigator from "./src/navigation/RootNavigator"; // Import RootNavigator
@@ -36,17 +37,19 @@ export default function App() {
       tokenCache={tokenCache}
       publishableKey={clerkPublishableKey}
     >
-      <SignedIn>
-        {/* Replace with RootNavigator later */}
-        {/* <View style={styles.container}>
-          <Text>Signed In Area (Replace with Main App Navigator)</Text>
-          <StatusBar style="auto" />
-        </View> */}
-        <RootNavigator /> {/* Render RootNavigator */}
-      </SignedIn>
-      <SignedOut>
-         <AuthNavigator />
-      </SignedOut>
+      <NavigationContainer>
+        <SignedIn>
+          {/* Restore RootNavigator */}
+          {/* <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+            <Text>Signed In - Debug View</Text>
+          </View> */}
+          <RootNavigator />
+        </SignedIn>
+        <SignedOut>
+           <AuthNavigator />
+        </SignedOut>
+      </NavigationContainer>
+      <StatusBar style="auto" />
     </ClerkProvider>
   );
 }

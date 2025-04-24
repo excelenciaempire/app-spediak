@@ -1,35 +1,303 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
-import { COLORS } from '../styles/colors';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, FlatList, ActivityIndicator, TouchableOpacity, Image, Alert, Platform } from 'react-native';
+import { useAuth } from '@clerk/clerk-expo';
+import { useFocusEffect } from '@react-navigation/native';
+import axios from 'axios';
+import { Search, Trash2 } from 'lucide-react-native'; // Added Trash2
+import DdidModal from '../components/DdidModal'; // Step 41: Import Modal
 
-const InspectionHistoryScreen = () => {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.text}>Inspection History Screen</Text>
-        <Text>History list will go here...</Text>
-      </View>
-    </SafeAreaView>
-  );
-};
+// --- Define Base URL (Platform Specific) ---
+// const YOUR_COMPUTER_IP_ADDRESS = '<YOUR-COMPUTER-IP-ADDRESS>'; // Removed
+// const YOUR_BACKEND_PORT = '<PORT>'; // Removed
+// const API_BASE_URL = Platform.select({...}); // Removed Old Logic
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  text: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.darkText,
-    marginBottom: 10,
-  },
+const BASE_URL = Platform.select({
+  ios: 'http://172.20.5.8:5000',
+  android: 'http://172.20.5.8:5000',
+  web: 'http://localhost:5000',
 });
+// --- End Base URL Definition ---
 
-export default InspectionHistoryScreen; 
+// Placeholder for Inspection type - define based on your actual API response
+interface Inspection {
+    id: string; // Or number, depending on your backend
+    imageUrl: string; // Or uri
+    description: string;
+    createdAt: string; // Or Date object
+    ddid: string; // Full DDID text
+    // Add other relevant fields like userState, etc.
+}
+
+
+export default function InspectionHistoryScreen() {
+    // Step 37: State Variables
+    const [inspections, setInspections] = useState<Inspection[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [selectedInspectionDdid, setSelectedInspectionDdid] = useState<string | null>(null);
+    const [showDetailModal, setShowDetailModal] = useState<boolean>(false);
+
+    const { getToken } = useAuth();
+
+    // Step 38: Data Fetching
+    const fetchInspections = useCallback(async () => {
+        console.log("[fetchInspections] Fetching inspections..."); // Log start
+        setIsLoading(true);
+        setError(null);
+        try {
+            const token = await getToken();
+            if (!token) throw new Error("User not authenticated");
+
+            console.log(`[fetchInspections] Calling GET ${BASE_URL}/api/inspections`); // Log API call
+            const response = await axios.get(`${BASE_URL}/api/inspections`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            console.log("[fetchInspections] API call successful, status:", response.status);
+            setInspections(Array.isArray(response.data) ? response.data : []);
+
+            // --- Placeholder Data (Remove/Comment out) ---
+            // await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+            // const placeholderInspections: Inspection[] = [
+            //     { id: '1', imageUrl: '...', description: '...', createdAt: '...', ddid: '...' },
+            // ];
+            // setInspections(placeholderInspections);
+            // --- End Placeholder ---
+
+        } catch (err: any) {
+            console.error("[fetchInspections] Error caught:", err);
+            if (err.response) {
+                console.error("[fetchInspections] Error response data:", err.response.data);
+                console.error("[fetchInspections] Error response status:", err.response.status);
+            }
+            const errorMessage = err.response?.data?.message || err.message || "Failed to fetch inspections";
+            console.log("[fetchInspections] Setting error state:", errorMessage); // Log error set
+            setError(errorMessage);
+        } finally {
+            console.log("[fetchInspections] Setting isLoading = false in finally block"); // Log finally
+            setIsLoading(false);
+        }
+    }, [getToken]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchInspections();
+        }, [fetchInspections])
+    );
+
+    // Step 42: Delete Logic
+    const handleDeleteInspection = async (id: string) => {
+        Alert.alert(
+            "Confirm Deletion",
+            "Are you sure you want to delete this inspection?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            const token = await getToken();
+                            if (!token) throw new Error("User not authenticated");
+
+                            console.log(`Attempting to delete inspection ID: ${id}`);
+
+                            // Use BASE_URL
+                            await axios.delete(`${BASE_URL}/api/inspections/${id}`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            // --- End Placeholder Simulation ---
+                            // setInspections(prev => prev.filter(insp => insp.id !== id));
+                            // console.log(`Simulated deletion of inspection ID: ${id}`);
+
+                            Alert.alert("Success", "Inspection deleted."); // Give feedback
+
+                            // Refresh list from server after successful deletion
+                            await fetchInspections();
+
+                        } catch (err: any) {
+                            console.error(`Error deleting inspection ID ${id}:`, err);
+                            const errorMessage = err.response?.data?.message || err.message || "Failed to delete inspection";
+                            Alert.alert("Error", errorMessage);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    // Step 40: Filter Logic
+    const filteredInspections = useMemo(() => {
+        if (!searchQuery) {
+            return inspections;
+        }
+        const lowerCaseQuery = searchQuery.toLowerCase();
+        return inspections.filter(inspection =>
+            inspection.description.toLowerCase().includes(lowerCaseQuery) ||
+            (inspection.createdAt && new Date(inspection.createdAt).toLocaleDateString().includes(lowerCaseQuery)) ||
+            (inspection.ddid && inspection.ddid.toLowerCase().includes(lowerCaseQuery)) // Optionally search DDID text too
+        );
+    }, [inspections, searchQuery]);
+
+    // Step 39 & 41: FlatList Render Item (Completed Design)
+    const renderItem = ({ item }: { item: Inspection }) => {
+        const inspectionDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A';
+
+        return (
+             // Step 41: Wrap item in TouchableOpacity for detail view
+            <TouchableOpacity
+                style={styles.itemContainer}
+                onPress={() => {
+                    console.log("Item tapped:", item.id);
+                    setSelectedInspectionDdid(item.ddid); // Set DDID for modal
+                    setShowDetailModal(true); // Show modal
+                }}
+                >
+                <Image source={{ uri: item.imageUrl || 'https://via.placeholder.com/60' }} style={styles.itemThumbnail} />
+                <View style={styles.itemTextContainer}>
+                    <Text style={styles.itemDescription} numberOfLines={2} ellipsizeMode="tail">{item.description}</Text>
+                    <Text style={styles.itemDate}>Date: {inspectionDate}</Text>
+                </View>
+                <TouchableOpacity onPress={() => handleDeleteInspection(item.id)} style={styles.deleteButton}>
+                    <Trash2 size={20} color="#dc3545" />
+                </TouchableOpacity>
+            </TouchableOpacity>
+        );
+    };
+
+    return (
+        <View style={styles.container}>
+            {/* Step 36: Header */}
+            <Text style={styles.headerTitle}>Inspection History</Text>
+
+            {/* Step 36: Search Input */}
+            <View style={styles.searchContainer}>
+                 <Search size={20} color="#6c757d" style={styles.searchIcon} />
+                 <TextInput
+                    style={styles.searchInput}
+                    placeholder="Q Search inspections..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery} // Step 40
+                    placeholderTextColor="#6c757d"
+                />
+            </View>
+
+            {/* Step 36 & 39 & 40: FlatList using filtered data */}
+            {isLoading && <ActivityIndicator size="large" color="#007bff" style={styles.loader} />}
+            {error && <Text style={styles.errorText}>{error}</Text>}
+            {!isLoading && !error && (
+                <FlatList
+                    data={filteredInspections} // Use filtered data (Step 40)
+                    renderItem={renderItem}
+                    keyExtractor={item => item.id}
+                    style={styles.list}
+                    ListEmptyComponent={<Text style={styles.emptyText}>{searchQuery ? 'No matching inspections found.' : 'No inspections found.'}</Text>}
+                />
+            )}
+
+            {/* Step 41: Render Detail Modal */}
+            <DdidModal
+                visible={showDetailModal}
+                onClose={() => setShowDetailModal(false)}
+                ddidText={selectedInspectionDdid || ''}
+            />
+        </View>
+    );
+}
+
+// Step 36, 39, 42: Styles (Updated)
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#f8f9fa',
+    },
+    headerTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#333',
+        paddingHorizontal: 20,
+        paddingTop: 20, // Adjust as needed for status bar/header
+        paddingBottom: 10,
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#ffffff',
+        borderRadius: 8,
+        marginHorizontal: 20,
+        marginBottom: 15,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: '#ced4da',
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        height: 45, // Increased height
+        fontSize: 16,
+        color: '#333',
+    },
+    list: {
+        flex: 1,
+        // Remove paddingHorizontal from here if adding to container
+    },
+    itemContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 15, // Add padding here
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        backgroundColor: '#fff',
+        marginHorizontal: 20, // Add horizontal margin instead of list padding
+        marginBottom: 8, // Add space between items
+        borderRadius: 8, // Add slight rounding
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1.41,
+        elevation: 1,
+    },
+    itemThumbnail: {
+        width: 50,
+        height: 50,
+        borderRadius: 5,
+        marginRight: 15,
+        backgroundColor: '#e0e0e0', // Placeholder bg color
+    },
+    itemTextContainer: {
+        flex: 1, // Allow text to take available space
+        justifyContent: 'center',
+    },
+    itemDescription: {
+        fontSize: 15,
+        color: '#333',
+        marginBottom: 4, // Space between description and date
+    },
+    itemDate: {
+        fontSize: 13,
+        color: '#6c757d',
+    },
+    deleteButton: {
+        padding: 8, // Increase tappable area
+        marginLeft: 10, // Space from text content
+    },
+    loader: {
+        marginTop: 50,
+    },
+    errorText: {
+        color: 'red',
+        textAlign: 'center',
+        marginTop: 20,
+        marginHorizontal: 20,
+    },
+    emptyText: {
+        textAlign: 'center',
+        marginTop: 50,
+        color: '#6c757d',
+        fontSize: 16,
+    },
+    // Add modal styles later if needed
+}); 

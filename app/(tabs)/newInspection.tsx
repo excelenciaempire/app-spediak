@@ -1,0 +1,446 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, Button, Image, TextInput, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import axios from 'axios';
+import { ImagePlus, Send, BotMessageSquare, RefreshCcw, Mic, MicOff } from 'lucide-react-native';
+import DdidModal from '../../src/components/DdidModal';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+
+// --- Define Base URL (Platform Specific) ---
+// const YOUR_COMPUTER_IP_ADDRESS = '<YOUR-COMPUTER-IP-ADDRESS>'; // Removed
+// const YOUR_BACKEND_PORT = '<PORT>'; // Removed
+// const API_BASE_URL = Platform.select({...}); // Removed Old Logic
+
+const BASE_URL = Platform.select({
+  ios: 'http://172.20.5.8:5000',
+  android: 'http://172.20.5.8:5000',
+  web: 'http://localhost:5000',
+});
+// --- End Base URL Definition ---
+
+export default function NewInspectionScreen() {
+    const [imageUri, setImageUri] = useState<string | null>(null);
+    const [imageBase64, setImageBase64] = useState<string | null>(null);
+    const [description, setDescription] = useState<string>('');
+    const [generatedDdid, setGeneratedDdid] = useState<string | null>(null);
+    const [showDdidModal, setShowDdidModal] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isGenerating, setIsGenerating] = useState<boolean>(false);
+    const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const [isRecording, setIsRecording] = useState<boolean>(false);
+    const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+    const { getToken } = useAuth();
+    const { user } = useUser();
+
+    const userState = useMemo(() => {
+        const stateFromMeta = user?.unsafeMetadata?.inspectionState as string | undefined;
+        return stateFromMeta ?? 'NC';
+    }, [user]);
+
+    const pickImage = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission required', 'Sorry, we need camera roll permissions to make this work!');
+            return;
+        }
+
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 0.5,
+            base64: true,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            const asset = result.assets[0];
+            setImageUri(asset.uri);
+            setImageBase64(asset.base64 ?? null);
+            setGeneratedDdid(null);
+            setError(null);
+        }
+    };
+
+    const saveInspection = async (ddid: string) => {
+        if (!imageUri || !description || !ddid || !userState) {
+            console.error("Missing data for saving inspection.", { imageUri: !!imageUri, description: !!description, ddid: !!ddid, userState });
+            return;
+        }
+        console.log("[saveInspection] Attempting to save inspection with state:", userState);
+        try {
+            const token = await getToken();
+            if (!token) throw new Error("User not authenticated");
+
+            console.log(`[saveInspection] Calling POST ${BASE_URL}/api/inspections`);
+            await axios.post(`${BASE_URL}/api/inspections`, { imageUri, description, ddid, userState }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            console.log("[saveInspection] Inspection saved successfully via API.");
+
+        } catch (err: any) {
+            console.error("[saveInspection] Error saving inspection:", err);
+            const errorMessage = err.response?.data?.message || err.message || "Could not save the inspection.";
+            Alert.alert("Save Failed", errorMessage);
+        }
+    };
+
+    const handleGenerateDdid = async () => {
+        console.log("[handleGenerateDdid] Function called");
+        if (!imageBase64 || !description) {
+            Alert.alert("Missing Information", "Please upload an image and provide a description.");
+            return;
+        }
+
+        setIsGenerating(true);
+        setError(null);
+        setGeneratedDdid(null);
+
+        try {
+            const token = await getToken();
+            if (!token) throw new Error("Authentication token not found.");
+
+            console.log(`[handleGenerateDdid] Calling POST ${BASE_URL}/api/generate-ddid`);
+            const response = await axios.post(`${BASE_URL}/api/generate-ddid`, {
+                imageBase64,
+                description,
+                userState,
+            }, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            console.log("[handleGenerateDdid] API call successful, response status:", response.status);
+
+            if (response.data && response.data.ddid) {
+                console.log("[handleGenerateDdid] Valid DDID received");
+                setGeneratedDdid(response.data.ddid);
+                setShowDdidModal(true);
+                await saveInspection(response.data.ddid);
+            } else {
+                console.error("[handleGenerateDdid] Invalid response structure:", response.data);
+                throw new Error("Invalid response structure from server.");
+            }
+
+        } catch (err: any) {
+            console.error("[handleGenerateDdid] Error caught:", err);
+            if (err.response) {
+                console.error("[handleGenerateDdid] Error response data:", err.response.data);
+                console.error("[handleGenerateDdid] Error response status:", err.response.status);
+            }
+            const errorMessage = err.response?.data?.message || err.message || "Failed to generate DDID";
+            setError(errorMessage);
+            Alert.alert("Generation Failed", `An error occurred: ${errorMessage}`);
+        } finally {
+            console.log("[handleGenerateDdid] Setting isGenerating = false in finally block");
+            setIsGenerating(false);
+        }
+    };
+
+    async function startRecording() {
+        try {
+            console.log('Requesting permissions..');
+            await Audio.requestPermissionsAsync();
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                // interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+                playsInSilentModeIOS: true,
+                // interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                // shouldDuckAndroid: true,
+                // staysActiveInBackground: true,
+                // playThroughEarpieceAndroid: true,
+            });
+
+            console.log('Starting recording..');
+            const { recording } = await Audio.Recording.createAsync(
+               Audio.RecordingOptionsPresets.HIGH_QUALITY
+            );
+            setRecording(recording);
+            setIsRecording(true);
+            console.log('Recording started');
+        } catch (err) {
+            console.error('Failed to start recording', err);
+            Alert.alert("Recording Error", "Could not start recording.");
+            // Reset states if recording fails to start
+            setIsRecording(false);
+            setRecording(null);
+        }
+    }
+
+    async function stopRecording() {
+        if (!recording) {
+            console.warn('stopRecording called but no recording object exists.');
+            return;
+        }
+
+        console.log('Stopping recording..');
+        setIsRecording(false);
+        await recording.stopAndUnloadAsync();
+        // await Audio.setAudioModeAsync({
+        //     allowsRecordingIOS: false, // Set back to default if needed
+        // });
+        const uri = recording.getURI();
+        setRecording(null); // Clear recording object
+        console.log('Recording stopped and stored at', uri);
+
+        if (uri) {
+            transcribeAudio(uri);
+        }
+    }
+
+    async function transcribeAudio(audioUri: string) {
+        setIsTranscribing(true);
+        setError(null); // Clear previous errors
+        console.log('Attempting to transcribe audio:', audioUri);
+
+        try {
+            const token = await getToken();
+            if (!token) throw new Error("Authentication token not found.");
+
+            const audioBase64 = await FileSystem.readAsStringAsync(audioUri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+
+            console.log('Sending audio to backend for transcription...');
+            // Replace with your actual backend endpoint if different
+            const response = await axios.post(`${BASE_URL}/api/transcribe`, {
+                audioBase64: audioBase64,
+            }, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (response.data && response.data.transcript) {
+                console.log('Transcription received:', response.data.transcript);
+                // Append transcript to existing description or replace?
+                // Let's append for now, user can edit.
+                setDescription(prev => prev ? `${prev} ${response.data.transcript}` : response.data.transcript);
+            } else {
+                throw new Error("Invalid response structure from transcription server.");
+            }
+
+        } catch (err: any) {
+            console.error('Transcription failed:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Failed to transcribe audio';
+            setError(errorMessage);
+            Alert.alert("Transcription Failed", errorMessage);
+        } finally {
+            setIsTranscribing(false);
+        }
+    }
+
+    const resetInspection = () => {
+        setImageUri(null);
+        setImageBase64(null);
+        setDescription('');
+        setGeneratedDdid(null);
+        setError(null);
+        setShowDdidModal(false);
+        setIsGenerating(false);
+        if (recording) {
+             recording.stopAndUnloadAsync().catch(e => console.error("Error stopping recording on reset:", e));
+        }
+        setRecording(null);
+        setIsRecording(false);
+        setIsTranscribing(false);
+        console.log("Inspection reset");
+    };
+
+    useEffect(() => {
+        return () => {
+            if (recording) {
+                console.log('Unmounting - stopping recording');
+                recording.stopAndUnloadAsync().catch(e => console.error("Error stopping recording on unmount:", e));
+            }
+        };
+    }, [recording]);
+
+    return (
+        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+            <Text style={styles.title}>New Damage Inspection</Text>
+            <Text style={styles.userStateText}>State: {userState}</Text>
+
+            <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                {imageUri ? (
+                    <Image source={{ uri: imageUri }} style={styles.image} />
+                ) : (
+                    <>
+                        <ImagePlus size={48} color="#ccc" />
+                        <Text style={styles.imagePickerText}>Upload Vehicle Image</Text>
+                    </>
+                )}
+            </TouchableOpacity>
+
+            <View style={styles.inputContainer}>
+                <TextInput
+                    style={styles.input}
+                    placeholder="Describe the vehicle damage..."
+                    value={description}
+                    onChangeText={setDescription}
+                    multiline
+                    editable={!isRecording && !isTranscribing}
+                />
+                <TouchableOpacity
+                    style={styles.micButton}
+                    onPress={isRecording ? stopRecording : startRecording}
+                    disabled={isTranscribing}
+                    >
+                    {isRecording ? (
+                         <MicOff size={24} color="#dc3545" />
+                    ) : isTranscribing ? (
+                         <ActivityIndicator size="small" color="#007bff" />
+                    ) : (
+                         <Mic size={24} color="#007bff" />
+                    )}
+                </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+                style={[styles.button, styles.generateButton, (!imageUri || !description || isGenerating) && styles.buttonDisabled]}
+                onPress={handleGenerateDdid}
+                disabled={!imageUri || !description || isGenerating}
+            >
+                {isGenerating ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                    <>
+                        <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
+                        <Text style={styles.buttonText}>Generate DDID Response</Text>
+                    </>
+                )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+                style={[styles.button, styles.newChatButton]}
+                onPress={resetInspection}
+            >
+                <RefreshCcw size={20} color="#333" style={styles.buttonIcon} />
+                <Text style={styles.buttonTextSecondary}>New Chat</Text>
+            </TouchableOpacity>
+
+            {error && <Text style={styles.errorText}>{error}</Text>}
+
+            <DdidModal
+                visible={showDdidModal}
+                onClose={() => setShowDdidModal(false)}
+                ddidText={generatedDdid || ''}
+             />
+
+        </ScrollView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#f8f9fa',
+    },
+    contentContainer: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        marginBottom: 5,
+        color: '#333',
+    },
+    userStateText: {
+        fontSize: 14,
+        color: '#6c757d',
+        marginBottom: 15,
+    },
+    imagePicker: {
+        width: '100%',
+        height: 200,
+        backgroundColor: '#e9ecef',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 20,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#ced4da',
+    },
+    imagePickerText: {
+        marginTop: 10,
+        color: '#6c757d',
+    },
+    image: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 8,
+    },
+    inputContainer: {
+        flexDirection: 'row',
+        width: '100%',
+        alignItems: 'flex-start',
+        marginBottom: 20,
+        position: 'relative',
+    },
+    input: {
+        flex: 1,
+        height: 100,
+        borderColor: '#ced4da',
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingLeft: 15,
+        paddingRight: 50,
+        textAlignVertical: 'top',
+        backgroundColor: '#ffffff',
+        fontSize: 16,
+    },
+    micButton: {
+        position: 'absolute',
+        right: 8,
+        top: 12,
+        padding: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: 40,
+        width: 40,
+    },
+    button: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 25,
+        borderRadius: 25,
+        width: '80%',
+        marginBottom: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1.41,
+        elevation: 2,
+    },
+    generateButton: {
+        backgroundColor: '#007bff',
+    },
+    newChatButton: {
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#ccc'
+    },
+    buttonText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    buttonTextSecondary: {
+        color: '#333',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    buttonIcon: {
+        marginRight: 8,
+    },
+    buttonDisabled: {
+        backgroundColor: '#6c757d',
+        opacity: 0.7,
+    },
+    errorText: {
+        color: 'red',
+        marginTop: 10,
+        textAlign: 'center',
+    },
+}); 
