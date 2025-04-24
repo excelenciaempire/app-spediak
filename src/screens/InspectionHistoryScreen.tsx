@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, ActivityIndicator, TouchableOpacity, Image, Alert, Platform } from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, FlatList, ActivityIndicator, TouchableOpacity, Image, Alert, Platform, RefreshControl } from 'react-native';
 import { useAuth } from '@clerk/clerk-expo';
-import { useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native'; // Import useNavigation
 import axios from 'axios';
 import { Search, Trash2 } from 'lucide-react-native'; // Added Trash2
 import DdidModal from '../components/DdidModal'; // Step 41: Import Modal
@@ -33,12 +33,15 @@ export default function InspectionHistoryScreen() {
     // Step 37: State Variables
     const [inspections, setInspections] = useState<Inspection[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false); // State for RefreshControl
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [selectedInspectionDdid, setSelectedInspectionDdid] = useState<string | null>(null);
+    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
     const [showDetailModal, setShowDetailModal] = useState<boolean>(false);
 
     const { getToken } = useAuth();
+    const navigation = useNavigation(); // Get navigation object
 
     // Step 38: Data Fetching
     const fetchInspections = useCallback(async () => {
@@ -49,12 +52,16 @@ export default function InspectionHistoryScreen() {
             const token = await getToken();
             if (!token) throw new Error("User not authenticated");
 
-            console.log(`[fetchInspections] Calling GET ${BASE_URL}/api/inspections`); // Log API call
+            console.log(`[fetchInspections] Calling GET ${BASE_URL}/api/inspections`);
             const response = await axios.get(`${BASE_URL}/api/inspections`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             console.log("[fetchInspections] API call successful, status:", response.status);
-            setInspections(Array.isArray(response.data) ? response.data : []);
+            // Log the actual data received more clearly
+            console.log("[fetchInspections] Received data:", JSON.stringify(response.data, null, 2));
+            const inspectionsData = Array.isArray(response.data) ? response.data : [];
+            console.log("[fetchInspections] Setting inspections state with count:", inspectionsData.length);
+            setInspections(inspectionsData);
 
             // --- Placeholder Data (Remove/Comment out) ---
             // await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
@@ -79,11 +86,33 @@ export default function InspectionHistoryScreen() {
         }
     }, [getToken]);
 
-    useFocusEffect(
-        useCallback(() => {
+    // --- Fetch data on initial mount AND on screen focus using event listener ---
+    useEffect(() => {
+        // Fetch data initially when the component mounts
+        console.log("[useEffect Mount] Fetching initial inspections...");
+        fetchInspections();
+
+        // Subscribe to focus events
+        const unsubscribe = navigation.addListener('focus', () => {
+            console.log("[navigation Listener] Screen focused, fetching inspections...");
             fetchInspections();
-        }, [fetchInspections])
-    );
+        });
+
+        // Return the function to unsubscribe from the event so it gets removed on unmount
+        return unsubscribe;
+    }, [navigation]); // ONLY depend on navigation. fetchInspections is called from parent scope.
+    // --- End event listener logic ---
+
+    // --- Pull to Refresh Logic ---
+    const onRefresh = useCallback(async () => {
+        console.log("[onRefresh] Starting refresh...");
+        setIsRefreshing(true);
+        // Use the original fetchInspections here, as it's needed for standalone refresh
+        await fetchInspections();
+        setIsRefreshing(false);
+        console.log("[onRefresh] Refresh finished.");
+    }, [fetchInspections]);
+    // --- End Pull to Refresh Logic ---
 
     // Step 42: Delete Logic
     const handleDeleteInspection = async (id: string) => {
@@ -142,14 +171,17 @@ export default function InspectionHistoryScreen() {
     // Step 39 & 41: FlatList Render Item (Completed Design)
     const renderItem = ({ item }: { item: Inspection }) => {
         const inspectionDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A';
+        // Log the imageUrl for debugging
+        console.log(`[renderItem] Rendering item ID: ${item.id}, Image URL: ${item.imageUrl}`);
 
         return (
              // Step 41: Wrap item in TouchableOpacity for detail view
             <TouchableOpacity
                 style={styles.itemContainer}
                 onPress={() => {
-                    console.log("Item tapped:", item.id);
+                    console.log("Item tapped:", item.id, "Image URL:", item.imageUrl); // Log URL
                     setSelectedInspectionDdid(item.ddid); // Set DDID for modal
+                    setSelectedImageUrl(item.imageUrl); // Set Image URL for modal
                     setShowDetailModal(true); // Show modal
                 }}
                 >
@@ -175,7 +207,7 @@ export default function InspectionHistoryScreen() {
                  <Search size={20} color="#6c757d" style={styles.searchIcon} />
                  <TextInput
                     style={styles.searchInput}
-                    placeholder="Q Search inspections..."
+                    placeholder="Search inspections..."
                     value={searchQuery}
                     onChangeText={setSearchQuery} // Step 40
                     placeholderTextColor="#6c757d"
@@ -186,13 +218,29 @@ export default function InspectionHistoryScreen() {
             {isLoading && <ActivityIndicator size="large" color="#007bff" style={styles.loader} />}
             {error && <Text style={styles.errorText}>{error}</Text>}
             {!isLoading && !error && (
-                <FlatList
-                    data={filteredInspections} // Use filtered data (Step 40)
-                    renderItem={renderItem}
-                    keyExtractor={item => item.id}
-                    style={styles.list}
-                    ListEmptyComponent={<Text style={styles.emptyText}>{searchQuery ? 'No matching inspections found.' : 'No inspections found.'}</Text>}
-                />
+                 // Explicit check for empty data after loading
+                 filteredInspections.length === 0 ? (
+                    <Text style={styles.emptyText}>{searchQuery ? 'No matching inspections found.' : 'No inspection history found.'}</Text>
+                 ) : (
+                    <FlatList
+                        data={filteredInspections} // Use filtered data (Step 40)
+                        renderItem={renderItem}
+                        keyExtractor={item => item.id}
+                        style={styles.list}
+                        // --- Add RefreshControl ---
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={isRefreshing}
+                                onRefresh={onRefresh}
+                                colors={["#007bff"]} // Optional: spinner color
+                                tintColor={"#007bff"} // Optional: spinner color for iOS
+                            />
+                        }
+                        // --- End RefreshControl ---
+                        // ListEmptyComponent can still be used as a fallback, but the check above is more direct
+                        // ListEmptyComponent={<Text style={styles.emptyText}>{searchQuery ? 'No matching inspections found.' : 'No inspections found.'}</Text>}
+                    />
+                 )
             )}
 
             {/* Step 41: Render Detail Modal */}
@@ -200,6 +248,7 @@ export default function InspectionHistoryScreen() {
                 visible={showDetailModal}
                 onClose={() => setShowDetailModal(false)}
                 ddidText={selectedInspectionDdid || ''}
+                imageUrl={selectedImageUrl || undefined}
             />
         </View>
     );

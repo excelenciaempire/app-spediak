@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Button, Image, TextInput, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, Button, Image, TextInput, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity, Platform, Dimensions, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import axios from 'axios';
@@ -20,6 +20,9 @@ const BASE_URL = Platform.select({
 });
 // --- End Base URL Definition ---
 
+const { width } = Dimensions.get('window'); // Get screen width
+const imageSize = width * 0.9; // Calculate square image size (90% of width)
+
 export default function NewInspectionScreen() {
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -31,58 +34,129 @@ export default function NewInspectionScreen() {
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+    const [showAnalyzingPopup, setShowAnalyzingPopup] = useState<boolean>(false);
     const { getToken } = useAuth();
     const { user } = useUser();
+    const [userState, setUserState] = useState<string>('NC'); // Default to NC
 
-    const userState = useMemo(() => {
-        const stateFromMeta = user?.unsafeMetadata?.inspectionState as string | undefined;
-        return stateFromMeta ?? 'NC';
+    // --- Fetch user state from Clerk metadata ---
+    useEffect(() => {
+        if (user?.unsafeMetadata?.inspectionState) {
+            setUserState(user.unsafeMetadata.inspectionState as string);
+        }
     }, [user]);
+    // --- End user state fetching ---
 
     const pickImage = async () => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission required', 'Sorry, we need camera roll permissions to make this work!');
+        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+        const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
+            Alert.alert('Permission required', 'Camera and Media Library permissions are needed to select an image.');
             return;
         }
 
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.5,
-            base64: true,
-        });
+        // Ask user for source
+        Alert.alert(
+            "Select Image Source",
+            "Choose where to get the image from:",
+            [
+                {
+                    text: "Take Photo",
+                    onPress: async () => {
+                        try {
+                            let result = await ImagePicker.launchCameraAsync({
+                                allowsEditing: true,
+                                aspect: [1, 1], // Enforce square aspect ratio
+                                quality: 0.8, // Slightly higher quality
+                                base64: true,
+                            });
+                            handleImageResult(result);
+                        } catch (error) {
+                            handleImageError(error);
+                        }
+                    }
+                },
+                {
+                    text: "Choose from Library",
+                    onPress: async () => {
+                        try {
+                             let result = await ImagePicker.launchImageLibraryAsync({
+                                mediaTypes: ImagePicker.MediaTypeOptions.Images, // Keep this correct type
+                                allowsEditing: true,
+                                aspect: [1, 1], // Enforce square aspect ratio
+                                quality: 0.8, // Slightly higher quality
+                                base64: true,
+                            });
+                            handleImageResult(result);
+                        } catch (error) {
+                            handleImageError(error);
+                        }
+                    }
+                },
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                }
+            ]
+        );
+    };
 
-        if (!result.canceled && result.assets && result.assets.length > 0) {
+    // Helper function to handle result from either picker
+    const handleImageResult = (result: ImagePicker.ImagePickerResult) => {
+         if (!result.canceled && result.assets && result.assets.length > 0) {
             const asset = result.assets[0];
             setImageUri(asset.uri);
             setImageBase64(asset.base64 ?? null);
-            setGeneratedDdid(null);
-            setError(null);
+            setGeneratedDdid(null); // Clear previous DDID
+            setError(null); // Clear previous error
+        } else {
+            console.log('Image selection cancelled or failed');
         }
     };
 
+     // Helper function to handle errors from either picker
+    const handleImageError = (error: any) => {
+        console.error("ImagePicker Error: ", error);
+        setError('Failed to pick image. Please try again.');
+        Alert.alert('Error', 'Could not load the image.');
+    };
+
     const saveInspection = async (ddid: string) => {
-        if (!imageUri || !description || !ddid || !userState) {
-            console.error("Missing data for saving inspection.", { imageUri: !!imageUri, description: !!description, ddid: !!ddid, userState });
-            return;
-        }
         console.log("[saveInspection] Attempting to save inspection with state:", userState);
         try {
             const token = await getToken();
             if (!token) throw new Error("User not authenticated");
 
-            console.log(`[saveInspection] Calling POST ${BASE_URL}/api/inspections`);
-            await axios.post(`${BASE_URL}/api/inspections`, { imageUri, description, ddid, userState }, {
+            // Log the exact data being sent
+            const payload = {
+                imageUri,
+                description,
+                ddid,
+                userState
+            };
+            console.log(`[saveInspection] Preparing to POST to ${BASE_URL}/api/inspections with payload:`, JSON.stringify(payload));
+
+            // Check if imageUri is valid before sending
+            if (!imageUri || typeof imageUri !== 'string') {
+                console.error("[saveInspection] Invalid imageUri before sending:", imageUri);
+                throw new Error("Invalid image URI detected before save.");
+            }
+
+            await axios.post(`${BASE_URL}/api/inspections`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             console.log("[saveInspection] Inspection saved successfully via API.");
 
         } catch (err: any) {
-            console.error("[saveInspection] Error saving inspection:", err);
+            // Ensure error logging is robust
+            console.error("[saveInspection] Error caught during save attempt:", err);
+            if (err.response) {
+                 console.error("[saveInspection] Error response data:", err.response.data);
+                 console.error("[saveInspection] Error response status:", err.response.status);
+            }
             const errorMessage = err.response?.data?.message || err.message || "Could not save the inspection.";
-            Alert.alert("Save Failed", errorMessage);
+            Alert.alert("Save Failed", `Error: ${errorMessage}`); // Show detailed error
         }
     };
 
@@ -92,8 +166,8 @@ export default function NewInspectionScreen() {
             Alert.alert("Missing Information", "Please upload an image and provide a description.");
             return;
         }
-
         setIsGenerating(true);
+        setShowAnalyzingPopup(true);
         setError(null);
         setGeneratedDdid(null);
 
@@ -112,10 +186,24 @@ export default function NewInspectionScreen() {
             console.log("[handleGenerateDdid] API call successful, response status:", response.status);
 
             if (response.data && response.data.ddid) {
-                console.log("[handleGenerateDdid] Valid DDID received");
-                setGeneratedDdid(response.data.ddid);
-                setShowDdidModal(true);
-                await saveInspection(response.data.ddid);
+                const receivedDdid = response.data.ddid;
+                console.log("[handleGenerateDdid] Valid DDID received:", receivedDdid);
+
+                // Hide analyzing pop-up *before* showing results
+                setShowAnalyzingPopup(false);
+
+                setGeneratedDdid(receivedDdid);
+                setShowDdidModal(true); // Now show the results modal
+
+                // Add logging around saveInspection call
+                console.log("[handleGenerateDdid] Attempting to call saveInspection...");
+                try {
+                    await saveInspection(receivedDdid);
+                    console.log("[handleGenerateDdid] saveInspection call completed.");
+                } catch (saveError) {
+                    console.error("[handleGenerateDdid] Error occurred *during* saveInspection call:", saveError);
+                    // Optionally alert user here too, though saveInspection should handle its own alerts
+                }
             } else {
                 console.error("[handleGenerateDdid] Invalid response structure:", response.data);
                 throw new Error("Invalid response structure from server.");
@@ -133,6 +221,8 @@ export default function NewInspectionScreen() {
         } finally {
             console.log("[handleGenerateDdid] Setting isGenerating = false in finally block");
             setIsGenerating(false);
+            // Ensure analyzing pop-up is hidden in finally block as well (safety net)
+            setShowAnalyzingPopup(false);
         }
     };
 
@@ -255,24 +345,24 @@ export default function NewInspectionScreen() {
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-            <Text style={styles.title}>New Damage Inspection</Text>
+            <Text style={styles.title}>New Defect Inspection</Text>
             <Text style={styles.userStateText}>State: {userState}</Text>
 
             <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
                 {imageUri ? (
-                    <Image source={{ uri: imageUri }} style={styles.image} />
+                    <Image source={{ uri: imageUri }} style={styles.imagePreview} />
                 ) : (
-                    <>
-                        <ImagePlus size={48} color="#ccc" />
-                        <Text style={styles.imagePickerText}>Upload Vehicle Image</Text>
-                    </>
+                    <View style={styles.imagePlaceholder}>
+                        <ImagePlus size={50} color="#6c757d" />
+                        <Text style={styles.imagePlaceholderText}>Tap to select image</Text>
+                    </View>
                 )}
             </TouchableOpacity>
 
             <View style={styles.inputContainer}>
                 <TextInput
                     style={styles.input}
-                    placeholder="Describe the vehicle damage..."
+                    placeholder="Describe the image and provide details..."
                     value={description}
                     onChangeText={setDescription}
                     multiline
@@ -299,11 +389,14 @@ export default function NewInspectionScreen() {
                 disabled={!imageUri || !description || isGenerating}
             >
                 {isGenerating ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
+                    <>
+                        <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
+                        <Text style={styles.buttonText}>Generate Statement</Text>
+                    </>
                 ) : (
                     <>
                         <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
-                        <Text style={styles.buttonText}>Generate DDID Response</Text>
+                        <Text style={styles.buttonText}>Generate Statement</Text>
                     </>
                 )}
             </TouchableOpacity>
@@ -323,6 +416,21 @@ export default function NewInspectionScreen() {
                 onClose={() => setShowDdidModal(false)}
                 ddidText={generatedDdid || ''}
              />
+
+            {/* Analyzing Pop-up Modal */}
+            <Modal
+                transparent={true}
+                animationType="fade"
+                visible={showAnalyzingPopup}
+                onRequestClose={() => {}} // Prevent closing by back button
+            >
+                <View style={styles.popupOverlay}>
+                    <View style={styles.popupContainer}>
+                        <ActivityIndicator size="large" color="#007bff" />
+                        <Text style={styles.popupText}>Analyzing...</Text>
+                    </View>
+                </View>
+            </Modal>
 
         </ScrollView>
     );
@@ -349,8 +457,8 @@ const styles = StyleSheet.create({
         marginBottom: 15,
     },
     imagePicker: {
-        width: '100%',
-        height: 200,
+        width: imageSize,
+        height: imageSize,
         backgroundColor: '#e9ecef',
         justifyContent: 'center',
         alignItems: 'center',
@@ -358,15 +466,20 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         borderWidth: 1,
         borderColor: '#ced4da',
+        overflow: 'hidden',
     },
-    imagePickerText: {
+    imagePlaceholder: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imagePlaceholderText: {
         marginTop: 10,
         color: '#6c757d',
+        fontSize: 16,
     },
-    image: {
+    imagePreview: {
         width: '100%',
         height: '100%',
-        borderRadius: 8,
     },
     inputContainer: {
         flexDirection: 'row',
@@ -443,4 +556,29 @@ const styles = StyleSheet.create({
         marginTop: 10,
         textAlign: 'center',
     },
+    // --- Styles for Analyzing Pop-up ---
+    popupOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)', // Semi-transparent background
+    },
+    popupContainer: {
+        backgroundColor: 'white',
+        paddingVertical: 30,
+        paddingHorizontal: 40,
+        borderRadius: 10,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+    },
+    popupText: {
+        marginTop: 15,
+        fontSize: 16,
+        color: '#333',
+    },
+    // --- End Styles for Analyzing Pop-up ---
 }); 

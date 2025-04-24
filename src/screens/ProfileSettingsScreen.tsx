@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Image, Button, TextInput, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { useUser, useAuth } from '@clerk/clerk-expo';
 import { Picker } from '@react-native-picker/picker';
@@ -15,116 +15,210 @@ const availableStates = [
 export default function ProfileSettingsScreen() {
     const { isLoaded, isSignedIn, user } = useUser();
     const { signOut } = useAuth();
-    const [isEditing, setIsEditing] = useState<boolean>(false); // Step 44
+    const [isEditing, setIsEditing] = useState<boolean>(false);
 
     // State for editable fields
     const [firstName, setFirstName] = useState<string>('');
     const [lastName, setLastName] = useState<string>('');
     const [selectedState, setSelectedState] = useState<string | null>(null);
-    const [profileImageUri, setProfileImageUri] = useState<string | null>(null); // For local display during edit
-    const [profileImageBase64, setProfileImageBase64] = useState<string | null>(null); // For upload
+    const [profileImageUri, setProfileImageUri] = useState<string | null>(null); // Local URI for display/upload
+    const [profileImageBase64, setProfileImageBase64] = useState<string | null>(null); // Store base64
+    const [initialImageUri, setInitialImageUri] = useState<string | null>(null); // To track if image changed
 
-    const [isLoading, setIsLoading] = useState<boolean>(false); // For save/logout operations
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Initialize form fields when user data loads or edit mode starts
+    // Initialize form fields (just use user data, no auto-edit)
     useEffect(() => {
         if (user) {
             setFirstName(user.firstName || '');
             setLastName(user.lastName || '');
 
-            // Be very explicit for the type checker
             let stateToSet: string | null = null;
             const inspectionStateFromMeta = user.unsafeMetadata?.inspectionState;
-            if (typeof inspectionStateFromMeta === 'string') {
+            if (typeof inspectionStateFromMeta === 'string' && availableStates.some(s => s.value === inspectionStateFromMeta)) {
                 stateToSet = inspectionStateFromMeta;
             } else {
-                stateToSet = availableStates[0].value; // Default if null, undefined, or not a string
+                 // Default to first available state if not set or invalid
+                 stateToSet = availableStates.length > 1 ? availableStates[1].value : null; // Assuming first is placeholder
             }
             setSelectedState(stateToSet);
 
-            setProfileImageUri(user.imageUrl || null); // Use Clerk's image URL initially
-            setProfileImageBase64(null); // Clear base64 on initial load/mode switch
+            const initialUri = user.imageUrl || null;
+            setProfileImageUri(initialUri);
+            setInitialImageUri(initialUri);
+            setProfileImageBase64(null); // Ensure base64 is cleared on load/mode switch
         }
     }, [user, isEditing]); // Rerun when user loads OR when switching to edit mode
 
-    // Step 48: Profile Picture Update Logic
+    // --- Updated Image Picker Logic ---
     const pickImage = async () => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission required', 'Sorry, we need camera roll permissions to change your profile picture.');
+        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+        const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
+            Alert.alert('Permission required', 'Camera and Media Library permissions are needed to select an image.');
             return;
         }
 
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1], // Square aspect ratio for profile pics
-            quality: 0.7,
-            base64: true, // Needed for Clerk upload potentially
-        });
+        // Ask user for source
+        Alert.alert(
+            "Select Image Source",
+            "Choose where to get the image from:",
+            [
+                {
+                    text: "Take Photo",
+                    onPress: async () => {
+                        try {
+                            let result = await ImagePicker.launchCameraAsync({
+                                allowsEditing: true,
+                                aspect: [1, 1],
+                                quality: 0.7,
+                                base64: true, // Request base64 again
+                            });
+                            handleImageResult(result);
+                        } catch (error) {
+                            handleImageError(error);
+                        }
+                    }
+                },
+                {
+                    text: "Choose from Library",
+                    onPress: async () => {
+                        try {
+                            let result = await ImagePicker.launchImageLibraryAsync({
+                                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                                allowsEditing: true,
+                                aspect: [1, 1],
+                                quality: 0.7,
+                                base64: true, // Request base64 again
+                            });
+                            handleImageResult(result);
+                        } catch (error) {
+                            handleImageError(error);
+                        }
+                    }
+                },
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                }
+            ]
+        );
+    };
 
+    // Helper function to handle result from either picker
+    const handleImageResult = (result: ImagePicker.ImagePickerResult) => {
         if (!result.canceled && result.assets && result.assets.length > 0) {
             const asset = result.assets[0];
-            setProfileImageUri(asset.uri); // Show selected image locally
-            // Explicitly check if base64 exists before setting state
-            setProfileImageBase64(asset.base64 ?? null);
+            setProfileImageUri(asset.uri); // Update local display URI
+            setProfileImageBase64(asset.base64 ?? null); // Store base64
+        } else {
+            console.log('Image selection cancelled or failed');
         }
     };
 
-    // Step 51 & 48, 49, 50: Save Changes Logic
+     // Helper function to handle errors from either picker
+    const handleImageError = (error: any) => {
+        console.error("ImagePicker Error: ", error);
+        setError('Failed to pick image. Please try again.');
+        Alert.alert('Error', 'Could not load the image.');
+    };
+    // --- End Updated Image Picker Logic ---
+
+    // --- Updated Save Changes Logic ---
     const handleSaveChanges = async () => {
         if (!user) return;
+
+        // Keep validation, but message is less critical now
+        if (!firstName || !lastName || !selectedState) {
+             Alert.alert("Missing Information", "Please ensure First Name, Last Name, and State are provided.");
+             return;
+        }
+
         setIsLoading(true);
         setError(null);
+        let imageUpdateSuccess = true; // Flag to track image upload success
 
         try {
-            const updates: any = {};
-            let needsUpdate = false;
+            // --- Step 1: Handle Profile Image Update ---
+            if (profileImageBase64) { // If we have new base64 data
+                console.log("Profile image changed, attempting update with base64...");
+                try {
+                    // --- Determine MIME Type (Still useful for potential future backend upload) ---
+                    let mimeType = 'image/jpeg'; // Default
+                    if (profileImageUri) { // Get extension from URI if available
+                         const extension = profileImageUri.split('.').pop()?.toLowerCase();
+                         if (extension === 'png') mimeType = 'image/png';
+                         else if (extension === 'jpg' || extension === 'jpeg') mimeType = 'image/jpeg';
+                         else if (extension === 'gif') mimeType = 'image/gif';
+                         else if (extension === 'webp') mimeType = 'image/webp';
+                         console.log(`Determined MIME type: ${mimeType} for extension: ${extension}`);
+                    } else {
+                         console.warn("Cannot determine exact MIME type without URI, defaulting to image/jpeg");
+                    }
 
-            // Check Name Change (Step 49)
-            if (firstName !== user.firstName || lastName !== user.lastName) {
-                updates.firstName = firstName;
-                updates.lastName = lastName;
-                needsUpdate = true;
+                    /* // Remove ArrayBuffer/Blob approach
+                    // Fetch the image data as an ArrayBuffer
+                    const response = await fetch(profileImageUri);
+                    const imageBuffer = await response.arrayBuffer();
+                    // Create a new Blob with the correct MIME type
+                    const typedBlob = new Blob([imageBuffer], { type: mimeType });
+                    */
+
+                    // Try using the base64 string directly with setProfileImage
+                    // Prepend the data URI scheme which might be required by some APIs
+                    // Note: Clerk might *still* not support this directly from client.
+                    const dataUri = `data:${mimeType};base64,${profileImageBase64}`;
+                    console.log(`Attempting to upload image with data URI prefix (length: ${dataUri.length})`);
+
+                    // *** This is speculative - Clerk might reject this format ***
+                    await user.setProfileImage({ file: dataUri });
+                    console.log("Profile image updated successfully on Clerk (using base64/data URI).");
+                    setInitialImageUri(profileImageUri); // Update initial URI tracker on success
+                    setProfileImageBase64(null); // Clear base64 after successful upload attempt
+
+                } catch (imgErr: any) {
+                    console.error("Error updating profile image:", imgErr);
+                    setError(`Failed to update profile image: ${imgErr.errors?.[0]?.message || imgErr.message || 'Unknown error'}`); // Try to get detailed Clerk error
+                    Alert.alert("Image Update Error", `Failed to update profile image: ${imgErr.errors?.[0]?.message || imgErr.message || 'Please try again.'}`);
+                    imageUpdateSuccess = false; // Mark image update as failed
+                    // Don't clear base64 on failure, user might retry
+                }
             }
 
-            // Check State Change (Step 50)
-            if (selectedState !== user.unsafeMetadata?.inspectionState) {
-                updates.unsafeMetadata = { ...user.unsafeMetadata, inspectionState: selectedState };
-                 needsUpdate = true;
+            // --- Step 2: Handle Text Field Updates ---
+            if (imageUpdateSuccess) {
+                const updates: any = {};
+
+                if (firstName !== user.firstName) updates.firstName = firstName;
+                if (lastName !== user.lastName) updates.lastName = lastName;
+                if (selectedState !== user.unsafeMetadata?.inspectionState) {
+                    updates.unsafeMetadata = { ...user.unsafeMetadata, inspectionState: selectedState };
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    console.log("Updating user profile metadata/name with:", updates);
+                    await user.update(updates);
+                    Alert.alert("Success", "Profile updated successfully!");
+                 } else if (!profileImageBase64) {
+                    console.log("No changes detected to save.");
+                 } else {
+                     Alert.alert("Success", "Profile image updated successfully!");
+                 }
+                setIsEditing(false); // Exit edit mode on success
             }
-
-            // Handle Profile Image Update (Step 48) - Needs base64 or blob
-            if (profileImageBase64) {
-                 // Clerk's setProfileImage expects a File object (Web) or specific format (Native)
-                // Creating a Blob/File might be complex in RN. Let's log for now.
-                // A backend endpoint might be needed to handle base64 upload and then update Clerk via backend SDK.
-                 console.log("Profile image selected (base64 length):", profileImageBase64.length);
-                 Alert.alert("Image Update", "Updating profile image via direct base64 upload from client is complex. This feature requires further implementation, possibly via a backend.");
-                 // Placeholder: await user.setProfileImage({ file: /* Need to create File/Blob */ });
-                 // needsUpdate = true; // Uncomment if image update is implemented
-            }
-
-
-            if (needsUpdate) {
-                 console.log("Updating user profile with:", updates);
-                 await user.update(updates);
-                 Alert.alert("Success", "Profile updated successfully!");
-            } else {
-                console.log("No changes detected to save.");
-            }
-
-            setIsEditing(false); // Exit edit mode on successful save or no changes
 
         } catch (err: any) {
-            console.error("Error saving profile:", err);
-            setError(`Failed to save profile: ${err.message || 'Unknown error'}`);
-            Alert.alert("Error", `Failed to save profile: ${err.message || 'Please try again.'}`);
+            // Catch errors from user.update()
+            console.error("Error saving profile metadata/name:", err);
+            setError(`Failed to save profile details: ${err.message || 'Unknown error'}`);
+            Alert.alert("Error", `Failed to save profile details: ${err.message || 'Please try again.'}`);
         } finally {
             setIsLoading(false);
         }
     };
+    // --- End Updated Save Changes Logic ---
 
     // Step 52: Log Out Logic
     const handleLogout = async () => {
@@ -155,10 +249,10 @@ export default function ProfileSettingsScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Profile</Text>
-                {/* Step 47: Edit/Close Icons */}
-                <TouchableOpacity onPress={() => setIsEditing(!isEditing)} style={styles.iconButton}>
-                    {isEditing ? <X size={24} color="#333" /> : <Pencil size={24} color="#333" />}
-                </TouchableOpacity>
+                {/* Always show Edit/Close icon */}
+                 <TouchableOpacity onPress={() => setIsEditing(!isEditing)} style={styles.iconButton}>
+                     {isEditing ? <X size={24} color="#333" /> : <Pencil size={24} color="#333" />}
+                 </TouchableOpacity>
             </View>
 
             {error && <Text style={styles.errorText}>{error}</Text>}
@@ -194,10 +288,11 @@ export default function ProfileSettingsScreen() {
                     <Text style={styles.label}>Inspection State:</Text>
                      <View style={styles.pickerContainer}>
                         <Picker
-                            selectedValue={selectedState}
+                            selectedValue={selectedState ?? availableStates[0].value}
                             onValueChange={(itemValue) => setSelectedState(itemValue)}
                             style={styles.picker}
-                            itemStyle={styles.pickerItem} // iOS specific styling
+                            itemStyle={styles.pickerItem}
+                            prompt="Select Inspection State"
                         >
                             {availableStates.map(state => (
                                 <Picker.Item key={state.value} label={state.label} value={state.value} />
@@ -333,19 +428,16 @@ const styles = StyleSheet.create({
     },
     pickerContainer: {
         width: '100%',
-        height: 50,
         borderColor: '#ced4da',
         borderWidth: 1,
         borderRadius: 8,
         marginBottom: 20,
         backgroundColor: '#ffffff',
-        justifyContent: 'center', // Center picker text vertically
     },
     picker: {
         width: '100%',
-        height: '100%', // Needs height for Android?
-         color: '#333', // Ensure text color is visible
-         // Note: Picker styling is limited, especially cross-platform.
+         color: '#333',
+         paddingHorizontal: 10,
     },
      pickerItem: {
         // iOS only: affects the items in the dropdown wheel

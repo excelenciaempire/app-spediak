@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../styles/colors';
 
 // Import Screens
-import NewInspectionScreen from '../screens/NewInspectionScreen';
+import NewInspectionScreen from '../../app/(tabs)/newInspection';
 import InspectionHistoryScreen from '../screens/InspectionHistoryScreen';
 import ProfileSettingsScreen from '../screens/ProfileSettingsScreen';
 
@@ -70,12 +70,13 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   );
 };
 
-// Root Navigator Setup (Step 17)
+// Root Navigator Setup
 const RootNavigator: React.FC = () => {
+  // Always render the Drawer Navigator now
   return (
     <Drawer.Navigator
         initialRouteName="NewInspection"
-        drawerContent={(props: DrawerContentComponentProps) => <CustomDrawerContent {...props} />} // Use Custom Drawer (Step 19)
+        drawerContent={(props: DrawerContentComponentProps) => <CustomDrawerContent {...props} />}
         screenOptions={{
             headerStyle: {
                 backgroundColor: COLORS.primary,
@@ -87,7 +88,7 @@ const RootNavigator: React.FC = () => {
             drawerActiveTintColor: COLORS.primary,
             drawerInactiveTintColor: COLORS.darkText,
              drawerLabelStyle: {
-                marginLeft: -20, // Adjust icon spacing if needed
+                marginLeft: 0,
                 fontSize: 16,
              }
         }}
@@ -178,7 +179,7 @@ const styles = StyleSheet.create({
     logoutLabel: {
         fontWeight: 'bold',
         color: COLORS.primary,
-        marginLeft: -20,
+        marginLeft: 0,
         fontSize: 16,
     },
 });

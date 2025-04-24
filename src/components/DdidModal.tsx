@@ -8,7 +8,8 @@ import {
     ScrollView,
     Alert,
     Platform,
-    Dimensions
+    Dimensions,
+    Image
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { X, Copy } from 'lucide-react-native';
@@ -18,11 +19,12 @@ interface DdidModalProps {
     visible: boolean;
     onClose: () => void;
     ddidText: string;
+    imageUrl?: string; // Make imageUrl prop optional
 }
 
 const { width, height } = Dimensions.get('window');
 
-const DdidModal: React.FC<DdidModalProps> = ({ visible, onClose, ddidText }) => {
+const DdidModal: React.FC<DdidModalProps> = ({ visible, onClose, ddidText, imageUrl }) => {
 
     // Step 32: Copy Logic
     const copyToClipboard = async () => {
@@ -46,13 +48,18 @@ const DdidModal: React.FC<DdidModalProps> = ({ visible, onClose, ddidText }) => 
                 <View style={styles.modalView}>
                     {/* Header with Title and Close Button */}
                     <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>DDID Response</Text>
+                        <Text style={styles.modalTitle}>DDID Report</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <X size={24} color="#6c757d" />
                         </TouchableOpacity>
                     </View>
 
-                    <Text style={styles.modalSubtitle}>Generated Damage Description & Interpretation Document</Text>
+                    <Text style={styles.modalSubtitle}>Defect, Description, Implication, Direction</Text>
+
+                    {/* Conditionally Render Image */}
+                    {imageUrl && (
+                        <Image source={{ uri: imageUrl }} style={styles.modalImage} resizeMode="contain" />
+                    )}
 
                     {/* Scrollable Content Area */}
                     <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
@@ -109,8 +116,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 15,
         paddingBottom: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
     },
     modalTitle: {
         fontSize: 20,
@@ -121,9 +126,9 @@ const styles = StyleSheet.create({
          padding: 5, // Increase tappable area
     },
     modalSubtitle: {
-        fontSize: 14,
+        fontSize: 13,
         color: '#6c757d',
-        marginTop: 5,
+        marginTop: 0,
         marginBottom: 15,
         textAlign: 'center',
         paddingHorizontal: 20,
@@ -134,7 +139,13 @@ const styles = StyleSheet.create({
     scrollViewContent: {
          paddingHorizontal: 20,
          paddingBottom: 20, // Space at the bottom of scroll
-         paddingTop: 10,
+    },
+    modalImage: { // Style for the image inside the modal
+        width: '90%', // Take most of the modal width
+        height: 150, // Fixed height for the image
+        borderRadius: 8,
+        marginBottom: 15, // Space below the image
+        backgroundColor: '#eee', // Placeholder bg
     },
     modalText: { // Style for Markdown rendered text (default)
         marginBottom: 15,
@@ -153,12 +164,13 @@ const styles = StyleSheet.create({
     },
     copyButton: {
         flexDirection: 'row',
-        backgroundColor: '#007bff',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 20,
+        backgroundColor: '#2c3e50',
+        paddingVertical: 12,
+        paddingHorizontal: 30,
+        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
+        width: '100%',
     },
     copyButtonText: {
         color: 'white',

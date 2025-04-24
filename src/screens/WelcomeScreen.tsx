@@ -1,0 +1,335 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    Image,
+    TouchableOpacity,
+    Alert,
+    ActivityIndicator,
+    ScrollView,
+    Platform
+} from 'react-native';
+import { useUser } from '@clerk/clerk-expo';
+import { Picker } from '@react-native-picker/picker';
+import * as ImagePicker from 'expo-image-picker';
+import { Camera, CheckCircle } from 'lucide-react-native';
+import { COLORS } from '../styles/colors'; // Assuming you have a colors file
+
+// Define the states available for selection (same as ProfileSettingsScreen)
+const availableStates = [
+    { label: 'Select State...', value: null }, // Add a placeholder item
+    { label: 'North Carolina', value: 'NC' },
+    { label: 'South Carolina', value: 'SC' },
+    // Add other states as needed
+];
+
+// Simple navigation prop type for reload logic
+// In a real app, you might use a more specific type or context/state management
+type WelcomeScreenProps = {
+    // Potentially add navigation prop if needed later
+};
+
+const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
+    const { isLoaded, isSignedIn, user } = useUser();
+
+    // State for selections
+    const [selectedState, setSelectedState] = useState<string | null>(null);
+    const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+    const [profileImageBase64, setProfileImageBase64] = useState<string | null>(null); // For potential upload
+
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Image Picker Logic (copied and adapted from ProfileSettingsScreen)
+    const pickImage = async () => {
+        // ... (Permission requests remain the same) ...
+        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+        const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
+            Alert.alert('Permission required', 'Camera and Media Library permissions are needed.');
+            return;
+        }
+
+        // ... (Alert for source choice remains the same) ...
+        Alert.alert(
+            "Select Image Source",
+            "Choose where to get the image from:",
+            [
+                {
+                    text: "Take Photo",
+                    onPress: async () => {
+                        try {
+                            let result = await ImagePicker.launchCameraAsync({
+                                allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
+                            });
+                            handleImageResult(result);
+                        } catch (imgErr) { handleImageError(imgErr); }
+                    }
+                },
+                {
+                    text: "Choose from Library",
+                    onPress: async () => {
+                         try {
+                            let result = await ImagePicker.launchImageLibraryAsync({
+                                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                                allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
+                            });
+                             handleImageResult(result);
+                         } catch (imgErr) { handleImageError(imgErr); }
+                    }
+                },
+                { text: "Cancel", style: "cancel" }
+            ]
+        );
+    };
+    const handleImageResult = (result: ImagePicker.ImagePickerResult) => {
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            const asset = result.assets[0];
+            setProfileImageUri(asset.uri);
+            setProfileImageBase64(asset.base64 ?? null);
+        }
+    };
+    const handleImageError = (error: any) => {
+        console.error("ImagePicker Error: ", error);
+        Alert.alert('Error', 'Could not load the image.');
+    };
+    // --- End Image Picker Logic ---
+
+
+    // Continue Button Logic
+    const handleContinue = async () => {
+        if (!user) return;
+        if (!selectedState) {
+            Alert.alert("State Required", "Please select your inspection state to continue.");
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+        let imageUpdateSuccess = true;
+
+        try {
+            // --- Step 1: Handle Optional Profile Image Update ---
+            if (profileImageBase64) {
+                console.log("Profile image selected, attempting update...");
+                try {
+                    // Re-use base64 approach (assuming MIME type determination if needed)
+                    let mimeType = 'image/jpeg';
+                    if (profileImageUri) {
+                        const extension = profileImageUri.split('.').pop()?.toLowerCase();
+                         if (extension === 'png') mimeType = 'image/png';
+                         // Add other types if needed
+                    }
+                    const dataUri = `data:${mimeType};base64,${profileImageBase64}`;
+                    await user.setProfileImage({ file: dataUri });
+                    console.log("Profile image updated successfully on Clerk.");
+                } catch (imgErr: any) {
+                    console.error("Error updating profile image during welcome:", imgErr);
+                    // Don't block continuation for optional image failure, but notify user
+                    Alert.alert("Image Upload Issue", `Could not update profile image: ${imgErr.errors?.[0]?.message || imgErr.message}. You can try again later in Profile Settings.`);
+                    imageUpdateSuccess = false;
+                }
+            }
+
+            // --- Step 2: Update State Metadata ---
+            // Check if state actually needs updating (might already be set via Clerk dashboard/previous attempts)
+            if (user.unsafeMetadata?.inspectionState !== selectedState) {
+                 console.log(`Updating inspection state to: ${selectedState}`);
+                 await user.update({
+                     unsafeMetadata: { ...user.unsafeMetadata, inspectionState: selectedState }
+                 });
+                 console.log("User state metadata updated.");
+            } else {
+                 console.log("Selected state already matches metadata, no update needed.");
+            }
+
+            // --- Step 3: Reload User & Trigger Navigation ---
+            // Reloading the user data will cause the useUser hook elsewhere (e.g., RootNavigator)
+            // to get the updated data, which should then satisfy the 'isProfileComplete' check.
+            console.log("Reloading user data...");
+            await user.reload();
+            console.log("User data reloaded.");
+            // No explicit navigation needed here - App's root logic should react to updated user state
+
+        } catch (err: any) {
+            console.error("Error saving welcome screen data:", err);
+            setError(`Failed to save settings: ${err.message || 'Unknown error'}`);
+            Alert.alert("Error", `Failed to save settings: ${err.message || 'Please try again.'}`);
+            // Don't necessarily stop loading on error, user might retry
+        } finally {
+            // Stop loading indicator *only* if there wasn't an error that requires user action/retry
+             if (!error) {
+                 setIsLoading(false);
+             }
+             // We don't manually navigate away here. The RootNavigator should detect
+             // the updated user state after reload() and render the main app.
+        }
+    };
+
+    if (!isLoaded) {
+        return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+    }
+     if (!isSignedIn || !user) {
+        // Should ideally not happen if rendered conditionally after sign-in
+        return <View style={styles.loadingContainer}><Text>Error: User not found.</Text></View>;
+    }
+
+    return (
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
+            <Text style={styles.title}>Welcome to Spediak!</Text>
+            <Text style={styles.subtitle}>Let's get your profile ready.</Text>
+
+            {/* State Picker */}
+            <Text style={styles.label}>Select Inspection State (Required):</Text>
+            <View style={styles.pickerContainer}>
+                <Picker
+                    selectedValue={selectedState}
+                    onValueChange={(itemValue) => setSelectedState(itemValue)}
+                    style={styles.picker}
+                    prompt="Select Inspection State"
+                >
+                    {availableStates.map(state => (
+                         <Picker.Item key={state.value || 'placeholder'} label={state.label} value={state.value} enabled={state.value !== null} style={state.value === null ? styles.pickerPlaceholder : {}} />
+                    ))}
+                </Picker>
+            </View>
+
+             {/* Optional Profile Picture */}
+             <Text style={styles.label}>Profile Picture (Optional):</Text>
+             <TouchableOpacity onPress={pickImage} style={styles.profileImageContainer}>
+                 <Image
+                     source={{ uri: profileImageUri || 'https://via.placeholder.com/150' }} // Use a generic placeholder
+                     style={styles.profileImage}
+                 />
+                 <View style={styles.cameraOverlay}>
+                     <Camera size={24} color="#fff" />
+                 </View>
+             </TouchableOpacity>
+
+             {error && <Text style={styles.errorText}>{error}</Text>}
+
+             {/* Continue Button */}
+             <TouchableOpacity
+                  style={[styles.button, styles.continueButton, (!selectedState || isLoading) && styles.buttonDisabled]}
+                  onPress={handleContinue}
+                  disabled={!selectedState || isLoading} >
+                  {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Continue</Text>}
+              </TouchableOpacity>
+
+        </ScrollView>
+    );
+}
+
+// Add Styles similar to ProfileSettingsScreen but adapted
+const styles = StyleSheet.create({
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f8f9fa',
+    },
+     scrollView: {
+        flex: 1,
+        backgroundColor: '#f8f9fa',
+    },
+    container: {
+        flexGrow: 1,
+        alignItems: 'center',
+        padding: 30, // More padding
+        paddingTop: 60,
+    },
+     title: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    subtitle: {
+        fontSize: 18,
+        color: '#6c757d',
+        marginBottom: 40,
+        textAlign: 'center',
+    },
+    label: {
+        fontSize: 16,
+        color: '#495057',
+        alignSelf: 'flex-start',
+        marginBottom: 8,
+        fontWeight: '500',
+    },
+    pickerContainer: {
+        width: '100%',
+        borderColor: '#ced4da',
+        borderWidth: 1,
+        borderRadius: 8,
+        marginBottom: 30,
+        backgroundColor: '#ffffff',
+    },
+    picker: {
+        width: '100%',
+        height: Platform.OS === 'ios' ? 150 : 50, // iOS needs more height for wheel
+         color: '#333',
+    },
+     pickerPlaceholder: {
+         color: '#a0a0a0', // Style for placeholder text
+     },
+    profileImageContainer: {
+        marginBottom: 30,
+        position: 'relative',
+        alignSelf: 'center', // Center the image picker
+    },
+    profileImage: {
+        width: 150,
+        height: 150,
+        borderRadius: 75,
+        borderWidth: 3,
+        borderColor: '#007bff',
+        backgroundColor: '#e0e0e0', // Placeholder bg
+    },
+    cameraOverlay: {
+        position: 'absolute',
+        bottom: 5,
+        right: 5,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        padding: 8,
+        borderRadius: 20,
+    },
+     button: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14, // Slightly larger button
+        paddingHorizontal: 30,
+        borderRadius: 25,
+        width: '90%', // Wider button
+        marginTop: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    continueButton: {
+        backgroundColor: COLORS.primary, // Use primary color
+    },
+    buttonText: {
+        color: '#ffffff',
+        fontSize: 17,
+        fontWeight: 'bold',
+    },
+     buttonDisabled: {
+        backgroundColor: '#a0a0a0', // Grey out when disabled
+        opacity: 0.7,
+    },
+    errorText: {
+        color: 'red',
+        marginTop: 15,
+        textAlign: 'center',
+        fontSize: 14,
+    },
+});
+
+export default WelcomeScreen; 
