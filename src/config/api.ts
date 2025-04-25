@@ -1,10 +1,12 @@
 import { Platform } from 'react-native';
 
 // Define Base URL based on Platform
+// export const BASE_URL = Platform.select({...}); // << OLD CODE REMOVED
+
 export const BASE_URL = Platform.select({
-    ios: 'http://localhost:5000',       // Use localhost for iOS simulator/local dev
-    android: 'http://10.0.2.2:5000',    // Use special alias for Android emulator
-    web: 'http://localhost:5000',       // Use localhost for web development
+  web: 'http://localhost:5000',
+  ios: 'http://172.20.5.8:5000',
+  android: 'http://172.20.5.8:5000',
 });
 
 // Optional: Add a fallback or error if platform is not recognized

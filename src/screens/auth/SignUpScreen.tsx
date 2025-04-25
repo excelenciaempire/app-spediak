@@ -9,6 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { useSignUp } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
@@ -92,110 +94,119 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContentContainer}>
-        <Text style={styles.spediakTitle}>Spediak</Text>
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.description}>
-          Fill in the details below to create your account.
-        </Text>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingContainer}
+        behavior={'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.spediakTitle}>Spediak</Text>
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.description}>
+            Fill in the details below to create your account.
+          </Text>
 
-        {!pendingVerification && (
-          <>
-             {/* Input fields for Sign Up */}
-             <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
-                <TextInput
-                    style={styles.input}
-                    placeholder="First Name"
-                    placeholderTextColor={COLORS.darkText}
-                    value={firstName}
-                    onChangeText={setFirstName}
-                />
-            </View>
-             <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Last Name"
-                    placeholderTextColor={COLORS.darkText}
-                    value={lastName}
-                    onChangeText={setLastName}
-                />
-            </View>
-            <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
-                <TextInput
-                style={styles.input}
-                placeholder="Email Address"
-                placeholderTextColor={COLORS.darkText}
-                value={emailAddress}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                onChangeText={setEmailAddress}
-                />
-            </View>
-            <View style={styles.inputContainer}>
-                 <Ionicons name="lock-closed-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
-                <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor={COLORS.darkText}
-                value={password}
-                secureTextEntry={!passwordVisible}
-                onChangeText={setPassword}
-                />
-                 <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIconContainer}>
-                    <Ionicons name={passwordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.darkText} />
-                </TouchableOpacity>
-            </View>
-             <View style={styles.inputContainer}>
-                 <Ionicons name="lock-closed-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Confirm Password"
-                    placeholderTextColor={COLORS.darkText}
-                    value={confirmPassword}
-                    secureTextEntry={!confirmPasswordVisible}
-                    onChangeText={setConfirmPassword}
-                />
-                 <TouchableOpacity onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)} style={styles.eyeIconContainer}>
-                    <Ionicons name={confirmPasswordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.darkText} />
-                </TouchableOpacity>
-            </View>
+          {!pendingVerification && (
+            <>
+               {/* Input fields for Sign Up */}
+               <View style={styles.inputContainer}>
+                  <Ionicons name="person-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+                  <TextInput
+                      style={styles.input}
+                      placeholder="First Name"
+                      placeholderTextColor={COLORS.darkText}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                  />
+              </View>
+               <View style={styles.inputContainer}>
+                  <Ionicons name="person-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+                  <TextInput
+                      style={styles.input}
+                      placeholder="Last Name"
+                      placeholderTextColor={COLORS.darkText}
+                      value={lastName}
+                      onChangeText={setLastName}
+                  />
+              </View>
+              <View style={styles.inputContainer}>
+                  <Ionicons name="mail-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+                  <TextInput
+                  style={styles.input}
+                  placeholder="Email Address"
+                  placeholderTextColor={COLORS.darkText}
+                  value={emailAddress}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  onChangeText={setEmailAddress}
+                  />
+              </View>
+              <View style={styles.inputContainer}>
+                   <Ionicons name="lock-closed-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+                  <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor={COLORS.darkText}
+                  value={password}
+                  secureTextEntry={!passwordVisible}
+                  onChangeText={setPassword}
+                  />
+                   <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIconContainer}>
+                      <Ionicons name={passwordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.darkText} />
+                  </TouchableOpacity>
+              </View>
+               <View style={styles.inputContainer}>
+                   <Ionicons name="lock-closed-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+                  <TextInput
+                      style={styles.input}
+                      placeholder="Confirm Password"
+                      placeholderTextColor={COLORS.darkText}
+                      value={confirmPassword}
+                      secureTextEntry={!confirmPasswordVisible}
+                      onChangeText={setConfirmPassword}
+                  />
+                   <TouchableOpacity onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)} style={styles.eyeIconContainer}>
+                      <Ionicons name={confirmPasswordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.darkText} />
+                  </TouchableOpacity>
+              </View>
 
-            <TouchableOpacity style={styles.button} onPress={onSignUpPress} disabled={loading}>
-                {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.buttonText}>Create Account</Text>}
+              <TouchableOpacity style={styles.button} onPress={onSignUpPress} disabled={loading}>
+                  {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.buttonText}>Create Account</Text>}
+              </TouchableOpacity>
+            </>
+          )}
+
+          {pendingVerification && (
+            <>
+              <Text style={styles.description}>Check your email for a verification code.</Text>
+               <View style={styles.inputContainer}>
+                   <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+                  <TextInput
+                      style={styles.input}
+                      value={code}
+                      placeholder="Verification Code"
+                      placeholderTextColor={COLORS.darkText}
+                      keyboardType="numeric"
+                      onChangeText={setCode}
+                  />
+              </View>
+              <TouchableOpacity style={styles.button} onPress={onPressVerify} disabled={loading}>
+                   {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.buttonText}>Verify Email</Text>}
+              </TouchableOpacity>
+            </>
+          )}
+
+          <View style={styles.signInContainer}>
+            <Text style={styles.signInText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.signInLink}>Log In</Text>
             </TouchableOpacity>
-          </>
-        )}
-
-        {pendingVerification && (
-          <>
-            <Text style={styles.description}>Check your email for a verification code.</Text>
-             <View style={styles.inputContainer}>
-                 <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
-                <TextInput
-                    style={styles.input}
-                    value={code}
-                    placeholder="Verification Code"
-                    placeholderTextColor={COLORS.darkText}
-                    keyboardType="numeric"
-                    onChangeText={setCode}
-                />
-            </View>
-            <TouchableOpacity style={styles.button} onPress={onPressVerify} disabled={loading}>
-                 {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.buttonText}>Verify Email</Text>}
-            </TouchableOpacity>
-          </>
-        )}
-
-        <View style={styles.signInContainer}>
-          <Text style={styles.signInText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.signInLink}>Log In</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -205,6 +216,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
+  },
+  keyboardAvoidingContainer: {
+      flex: 1,
   },
   scrollContentContainer: {
     flexGrow: 1,

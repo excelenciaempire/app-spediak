@@ -53,58 +53,75 @@ export default function ProfileSettingsScreen() {
 
     // --- Updated Image Picker Logic ---
     const pickImage = async () => {
-        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-        const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (Platform.OS === 'web') {
+             // Web: Directly launch library, skip permissions and camera option
+             try {
+                 let result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.7,
+                    base64: true,
+                });
+                handleImageResult(result);
+            } catch (error) {
+                handleImageError(error);
+            }
+        } else {
+            // Native: Request permissions and show options alert
+            const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+            const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-        if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
-            Alert.alert('Permission required', 'Camera and Media Library permissions are needed to select an image.');
-            return;
+            if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
+                Alert.alert('Permission required', 'Camera and Media Library permissions are needed to select an image.');
+                return;
+            }
+
+            // Ask user for source
+            Alert.alert(
+                "Select Image Source",
+                "Choose where to get the image from:",
+                [
+                    {
+                        text: "Take Photo",
+                        onPress: async () => {
+                            try {
+                                let result = await ImagePicker.launchCameraAsync({
+                                    allowsEditing: true,
+                                    aspect: [1, 1],
+                                    quality: 0.7,
+                                    base64: true, // Request base64 again
+                                });
+                                handleImageResult(result);
+                            } catch (error) {
+                                handleImageError(error);
+                            }
+                        }
+                    },
+                    {
+                        text: "Choose from Library",
+                        onPress: async () => {
+                            try {
+                                let result = await ImagePicker.launchImageLibraryAsync({
+                                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                                    allowsEditing: true,
+                                    aspect: [1, 1],
+                                    quality: 0.7,
+                                    base64: true, // Request base64 again
+                                });
+                                handleImageResult(result);
+                            } catch (error) {
+                                handleImageError(error);
+                            }
+                        }
+                    },
+                    {
+                        text: "Cancel",
+                        style: "cancel"
+                    }
+                ]
+            );
         }
-
-        // Ask user for source
-        Alert.alert(
-            "Select Image Source",
-            "Choose where to get the image from:",
-            [
-                {
-                    text: "Take Photo",
-                    onPress: async () => {
-                        try {
-                            let result = await ImagePicker.launchCameraAsync({
-                                allowsEditing: true,
-                                aspect: [1, 1],
-                                quality: 0.7,
-                                base64: true, // Request base64 again
-                            });
-                            handleImageResult(result);
-                        } catch (error) {
-                            handleImageError(error);
-                        }
-                    }
-                },
-                {
-                    text: "Choose from Library",
-                    onPress: async () => {
-                        try {
-                            let result = await ImagePicker.launchImageLibraryAsync({
-                                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                                allowsEditing: true,
-                                aspect: [1, 1],
-                                quality: 0.7,
-                                base64: true, // Request base64 again
-                            });
-                            handleImageResult(result);
-                        } catch (error) {
-                            handleImageError(error);
-                        }
-                    }
-                },
-                {
-                    text: "Cancel",
-                    style: "cancel"
-                }
-            ]
-        );
     };
 
     // Helper function to handle result from either picker

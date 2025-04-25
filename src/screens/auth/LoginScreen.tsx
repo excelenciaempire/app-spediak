@@ -8,6 +8,9 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform
 } from 'react-native';
 import { useSignIn } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons'; // Using Ionicons for icons
@@ -46,69 +49,86 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.spediakTitle}>Spediak</Text>
-      <Text style={styles.title}>Log In</Text>
-      <Text style={styles.description}>
-Enter your credentials to access your account.
-      </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingContainer}
+        behavior={'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollViewContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.spediakTitle}>Spediak</Text>
+          <Text style={styles.title}>Log In</Text>
+          <Text style={styles.description}>
+            Enter your credentials to access your account.
+          </Text>
 
-      <View style={styles.inputContainer}>
-        <Ionicons name="mail-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          placeholder="Email Address"
-          placeholderTextColor={COLORS.darkText}
-          value={emailAddress}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          onChangeText={(email) => setEmailAddress(email)}
-        />
-      </View>
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              placeholderTextColor={COLORS.darkText}
+              value={emailAddress}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              onChangeText={(email) => setEmailAddress(email)}
+            />
+          </View>
 
-      <View style={styles.inputContainer}>
-         <Ionicons name="lock-closed-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor={COLORS.darkText}
-          value={password}
-          secureTextEntry={!passwordVisible}
-          onChangeText={(password) => setPassword(password)}
-        />
-        <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIconContainer}>
-           <Ionicons name={passwordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.darkText} />
-        </TouchableOpacity>
-      </View>
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor={COLORS.darkText}
+              value={password}
+              secureTextEntry={!passwordVisible}
+              onChangeText={(password) => setPassword(password)}
+            />
+            <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIconContainer}>
+              <Ionicons name={passwordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.darkText} />
+            </TouchableOpacity>
+          </View>
 
-      <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotPasswordContainer}>
-        <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-      </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotPasswordContainer}>
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button} onPress={onSignInPress} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color={COLORS.white} />
-        ) : (
-          <Text style={styles.buttonText}>Log In</Text>
-        )}
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={onSignInPress} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.buttonText}>Log In</Text>
+            )}
+          </TouchableOpacity>
 
-      <View style={styles.signUpContainer}>
-        <Text style={styles.signUpText}>Don't have an account? </Text>
-        <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-          <Text style={styles.signUpLink}>Sign Up</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.signUpContainer}>
+            <Text style={styles.signUpText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+              <Text style={styles.signUpLink}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  keyboardAvoidingContainer: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
-    backgroundColor: COLORS.white,
   },
   spediakTitle: {
     fontSize: 36,
@@ -139,7 +159,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
   },
   inputIcon: {
-      marginRight: 10,
+    marginRight: 10,
   },
   input: {
     flex: 1,
@@ -148,7 +168,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   eyeIconContainer: {
-     padding: 5, // Makes the touch area slightly larger
+    padding: 5, // Makes the touch area slightly larger
   },
   forgotPasswordContainer: {
     alignSelf: 'flex-end',

@@ -11,14 +11,16 @@ import {
     Platform
 } from 'react-native';
 import { useUser } from '@clerk/clerk-expo';
-import { Picker } from '@react-native-picker/picker';
+import DropDownPicker from 'react-native-dropdown-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, CheckCircle } from 'lucide-react-native';
 import { COLORS } from '../styles/colors'; // Assuming you have a colors file
 
-// Define the states available for selection (same as ProfileSettingsScreen)
-const availableStates = [
-    { label: 'Select State...', value: null }, // Add a placeholder item
+// Define the states available for selection (Format for DropDownPicker)
+// Note: value cannot be null for DropDownPicker, use a placeholder object if needed
+// or handle initial null state carefully.
+const stateItems = [
+    // { label: 'Select State...', value: null }, // Placeholder can be handled by component prop
     { label: 'North Carolina', value: 'NC' },
     { label: 'South Carolina', value: 'SC' },
     // Add other states as needed
@@ -34,55 +36,75 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
     const { isLoaded, isSignedIn, user } = useUser();
 
     // State for selections
-    const [selectedState, setSelectedState] = useState<string | null>(null);
+    const [open, setOpen] = useState(false); // State for dropdown open/closed
+    const [selectedState, setSelectedState] = useState<string | null>(null); // Keep this for the value
+    const [items, setItems] = useState(stateItems); // Items for the dropdown
+
     const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
-    const [profileImageBase64, setProfileImageBase64] = useState<string | null>(null); // For potential upload
+    const [profileImageBase64, setProfileImageBase64] = useState<string | null>(null);
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
     // Image Picker Logic (copied and adapted from ProfileSettingsScreen)
     const pickImage = async () => {
-        // ... (Permission requests remain the same) ...
-        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-        const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (Platform.OS === 'web') {
+            // Web: Directly launch library, skip permissions and camera option
+            try {
+                let result = await ImagePicker.launchImageLibraryAsync({
+                   mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                   allowsEditing: true,
+                   aspect: [1, 1],
+                   quality: 0.7, // Keep original quality setting for this screen
+                   base64: true,
+               });
+               handleImageResult(result);
+           } catch (error) {
+               handleImageError(error);
+           }
+        } else {
+            // Native: Request permissions and show options alert
+            // ... (Permission requests remain the same) ...
+            const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+            const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-        if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
-            Alert.alert('Permission required', 'Camera and Media Library permissions are needed.');
-            return;
+            if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
+                Alert.alert('Permission required', 'Camera and Media Library permissions are needed.');
+                return;
+            }
+
+            // ... (Alert for source choice remains the same) ...
+            Alert.alert(
+                "Select Image Source",
+                "Choose where to get the image from:",
+                [
+                    {
+                        text: "Take Photo",
+                        onPress: async () => {
+                            try {
+                                let result = await ImagePicker.launchCameraAsync({
+                                    allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
+                                });
+                                handleImageResult(result);
+                            } catch (imgErr) { handleImageError(imgErr); }
+                        }
+                    },
+                    {
+                        text: "Choose from Library",
+                        onPress: async () => {
+                             try {
+                                let result = await ImagePicker.launchImageLibraryAsync({
+                                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                                    allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
+                                });
+                                 handleImageResult(result);
+                             } catch (imgErr) { handleImageError(imgErr); }
+                        }
+                    },
+                    { text: "Cancel", style: "cancel" }
+                ]
+            );
         }
-
-        // ... (Alert for source choice remains the same) ...
-        Alert.alert(
-            "Select Image Source",
-            "Choose where to get the image from:",
-            [
-                {
-                    text: "Take Photo",
-                    onPress: async () => {
-                        try {
-                            let result = await ImagePicker.launchCameraAsync({
-                                allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
-                            });
-                            handleImageResult(result);
-                        } catch (imgErr) { handleImageError(imgErr); }
-                    }
-                },
-                {
-                    text: "Choose from Library",
-                    onPress: async () => {
-                         try {
-                            let result = await ImagePicker.launchImageLibraryAsync({
-                                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                                allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
-                            });
-                             handleImageResult(result);
-                         } catch (imgErr) { handleImageError(imgErr); }
-                    }
-                },
-                { text: "Cancel", style: "cancel" }
-            ]
-        );
     };
     const handleImageResult = (result: ImagePicker.ImagePickerResult) => {
         if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -177,26 +199,11 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
     }
 
     return (
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>Welcome to Spediak!</Text>
             <Text style={styles.subtitle}>Let's get your profile ready.</Text>
 
-            {/* State Picker */}
-            <Text style={styles.label}>Select Inspection State (Required):</Text>
-            <View style={styles.pickerContainer}>
-                <Picker
-                    selectedValue={selectedState}
-                    onValueChange={(itemValue) => setSelectedState(itemValue)}
-                    style={styles.picker}
-                    prompt="Select Inspection State"
-                >
-                    {availableStates.map(state => (
-                         <Picker.Item key={state.value || 'placeholder'} label={state.label} value={state.value} enabled={state.value !== null} style={state.value === null ? styles.pickerPlaceholder : {}} />
-                    ))}
-                </Picker>
-            </View>
-
-             {/* Optional Profile Picture */}
+            {/* Optional Profile Picture (Moved Up) */}
              <Text style={styles.label}>Profile Picture (Optional):</Text>
              <TouchableOpacity onPress={pickImage} style={styles.profileImageContainer}>
                  <Image
@@ -207,6 +214,25 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
                      <Camera size={24} color="#fff" />
                  </View>
              </TouchableOpacity>
+
+            {/* State Picker (Moved Down & Using DropDownPicker) */}
+            <Text style={styles.label}>Select Inspection State (Required):</Text>
+            <DropDownPicker
+                open={open}
+                value={selectedState} // Use selectedState for value
+                items={items}
+                setOpen={setOpen}
+                setValue={setSelectedState} // Use setSelectedState to update value
+                setItems={setItems}
+                placeholder="Select State..." // Use placeholder prop
+                listMode="MODAL" // Or "SCROLLVIEW" or "FLATLIST"
+                style={styles.dropdown}
+                placeholderStyle={styles.dropdownPlaceholder}
+                dropDownContainerStyle={styles.dropdownContainer}
+                containerStyle={styles.dropdownWrapper} // Added wrapper for potential zIndex issues
+                zIndex={3000} // Necessary for dropdown visibility
+                zIndexInverse={1000}
+            />
 
              {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -259,25 +285,42 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
         marginBottom: 8,
         fontWeight: '500',
+        width: '100%', // Ensure label takes full width for alignment
+        paddingLeft: 5, // Slight indent
     },
-    pickerContainer: {
+    /* Remove old Picker styles
+    pickerContainer: { ... },
+    picker: { ... },
+    pickerPlaceholder: { ... },
+    */
+
+    // --- DropDownPicker Styles ---
+     dropdownWrapper: {
         width: '100%',
+        marginBottom: 30,
+     },
+     dropdown: {
         borderColor: '#ced4da',
         borderWidth: 1,
         borderRadius: 8,
-        marginBottom: 30,
         backgroundColor: '#ffffff',
-    },
-    picker: {
-        width: '100%',
-        height: Platform.OS === 'ios' ? 150 : 50, // iOS needs more height for wheel
-         color: '#333',
-    },
-     pickerPlaceholder: {
-         color: '#a0a0a0', // Style for placeholder text
+        height: 50,
      },
+     dropdownPlaceholder: {
+        color: "#a0a0a0",
+        paddingLeft: 5, // Align placeholder
+     },
+     dropdownContainer: {
+        borderColor: '#ced4da',
+        borderWidth: 1,
+        borderRadius: 8,
+        backgroundColor: '#ffffff',
+     },
+    // --- End DropDownPicker Styles ---
+
     profileImageContainer: {
         marginBottom: 30,
+        marginTop: 10, // Add some margin top
         position: 'relative',
         alignSelf: 'center', // Center the image picker
     },
