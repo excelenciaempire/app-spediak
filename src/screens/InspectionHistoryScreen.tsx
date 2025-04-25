@@ -5,17 +5,14 @@ import { useNavigation } from '@react-navigation/native'; // Import useNavigatio
 import axios from 'axios';
 import { Search, Trash2 } from 'lucide-react-native'; // Added Trash2
 import DdidModal from '../components/DdidModal'; // Step 41: Import Modal
+import { BASE_URL } from '../config/api'; // Import centralized BASE_URL
 
 // --- Define Base URL (Platform Specific) ---
 // const YOUR_COMPUTER_IP_ADDRESS = '<YOUR-COMPUTER-IP-ADDRESS>'; // Removed
 // const YOUR_BACKEND_PORT = '<PORT>'; // Removed
 // const API_BASE_URL = Platform.select({...}); // Removed Old Logic
 
-const BASE_URL = Platform.select({
-  ios: 'http://172.20.5.8:5000',
-  android: 'http://172.20.5.8:5000',
-  web: 'http://localhost:5000',
-});
+// const BASE_URL = Platform.select({...}); // <<< REMOVE THIS BLOCK >>>
 // --- End Base URL Definition ---
 
 // Placeholder for Inspection type - define based on your actual API response
@@ -116,43 +113,50 @@ export default function InspectionHistoryScreen() {
 
     // Step 42: Delete Logic
     const handleDeleteInspection = async (id: string) => {
-        Alert.alert(
-            "Confirm Deletion",
-            "Are you sure you want to delete this inspection?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            const token = await getToken();
-                            if (!token) throw new Error("User not authenticated");
+        const deleteConfirmedAction = async () => {
+            try {
+                const token = await getToken();
+                if (!token) throw new Error("User not authenticated");
 
-                            console.log(`Attempting to delete inspection ID: ${id}`);
+                console.log(`Attempting to delete inspection ID: ${id}`);
 
-                            // Use BASE_URL
-                            await axios.delete(`${BASE_URL}/api/inspections/${id}`, {
-                                headers: { Authorization: `Bearer ${token}` }
-                            });
-                            // --- End Placeholder Simulation ---
-                            // setInspections(prev => prev.filter(insp => insp.id !== id));
-                            // console.log(`Simulated deletion of inspection ID: ${id}`);
+                // Use BASE_URL
+                await axios.delete(`${BASE_URL}/api/inspections/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
 
-                            Alert.alert("Success", "Inspection deleted."); // Give feedback
+                Alert.alert("Success", "Inspection deleted."); // Give feedback
 
-                            // Refresh list from server after successful deletion
-                            await fetchInspections();
+                // Refresh list from server after successful deletion
+                await fetchInspections();
 
-                        } catch (err: any) {
-                            console.error(`Error deleting inspection ID ${id}:`, err);
-                            const errorMessage = err.response?.data?.message || err.message || "Failed to delete inspection";
-                            Alert.alert("Error", errorMessage);
-                        }
+            } catch (err: any) {
+                console.error(`Error deleting inspection ID ${id}:`, err);
+                const errorMessage = err.response?.data?.message || err.message || "Failed to delete inspection";
+                Alert.alert("Error", errorMessage);
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            // Web: Use window.confirm
+            if (window.confirm("Are you sure you want to delete this inspection?")) {
+                await deleteConfirmedAction();
+            }
+        } else {
+            // Native: Use Alert.alert
+            Alert.alert(
+                "Confirm Deletion",
+                "Are you sure you want to delete this inspection?",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                        text: "Delete",
+                        style: "destructive",
+                        onPress: deleteConfirmedAction, // Call the shared action
                     },
-                },
-            ]
-        );
+                ]
+            );
+        }
     };
 
     // Step 40: Filter Logic
@@ -170,7 +174,18 @@ export default function InspectionHistoryScreen() {
 
     // Step 39 & 41: FlatList Render Item (Completed Design)
     const renderItem = ({ item }: { item: Inspection }) => {
-        const inspectionDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A';
+        let dateTimeString = 'N/A';
+        if (item.createdAt) {
+            const dateObj = new Date(item.createdAt);
+            const formattedDate = dateObj.toLocaleDateString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric'
+            });
+            const formattedTime = dateObj.toLocaleTimeString(undefined, {
+                hour: 'numeric', minute: '2-digit' //, hour12: true // Optional: force 12-hour format
+            });
+            dateTimeString = `${formattedDate} at ${formattedTime}`;
+        }
+
         // Log the imageUrl for debugging
         console.log(`[renderItem] Rendering item ID: ${item.id}, Image URL: ${item.imageUrl}`);
 
@@ -188,7 +203,7 @@ export default function InspectionHistoryScreen() {
                 <Image source={{ uri: item.imageUrl || 'https://via.placeholder.com/60' }} style={styles.itemThumbnail} />
                 <View style={styles.itemTextContainer}>
                     <Text style={styles.itemDescription} numberOfLines={2} ellipsizeMode="tail">{item.description}</Text>
-                    <Text style={styles.itemDate}>Date: {inspectionDate}</Text>
+                    <Text style={styles.itemDate}>{dateTimeString}</Text>
                 </View>
                 <TouchableOpacity onPress={() => handleDeleteInspection(item.id)} style={styles.deleteButton}>
                     <Trash2 size={20} color="#dc3545" />

@@ -7,17 +7,14 @@ import { ImagePlus, Send, BotMessageSquare, RefreshCcw, Mic, MicOff } from 'luci
 import DdidModal from '../../src/components/DdidModal';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
+import { BASE_URL } from '../../src/config/api'; // Import centralized BASE_URL
 
 // --- Define Base URL (Platform Specific) ---
 // const YOUR_COMPUTER_IP_ADDRESS = '<YOUR-COMPUTER-IP-ADDRESS>'; // Removed
 // const YOUR_BACKEND_PORT = '<PORT>'; // Removed
 // const API_BASE_URL = Platform.select({...}); // Removed Old Logic
 
-const BASE_URL = Platform.select({
-  ios: 'http://172.20.5.8:5000',
-  android: 'http://172.20.5.8:5000',
-  web: 'http://localhost:5000',
-});
+// const BASE_URL = Platform.select({...}); // <<< REMOVE THIS BLOCK >>>
 // --- End Base URL Definition ---
 
 const { width } = Dimensions.get('window'); // Get screen width
@@ -48,58 +45,74 @@ export default function NewInspectionScreen() {
     // --- End user state fetching ---
 
     const pickImage = async () => {
-        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-        const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (Platform.OS === 'web') {
+            // Web: Directly launch library, skip permissions and camera option
+            try {
+                let result = await ImagePicker.launchImageLibraryAsync({
+                   mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                   allowsEditing: true,
+                   aspect: [1, 1],
+                   quality: 0.8,
+                   base64: true,
+               });
+               handleImageResult(result);
+           } catch (error) {
+               handleImageError(error);
+           }
+        } else {
+            // Native: Request permissions and show options alert
+            const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+            const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-        if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
-            Alert.alert('Permission required', 'Camera and Media Library permissions are needed to select an image.');
-            return;
+            if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
+                Alert.alert('Permission required', 'Camera and Media Library permissions are needed to select an image.');
+                return;
+            }
+
+            Alert.alert(
+                "Select Image Source",
+                "Choose where to get the image from:",
+                [
+                    {
+                        text: "Take Photo",
+                        onPress: async () => {
+                            try {
+                                let result = await ImagePicker.launchCameraAsync({
+                                    allowsEditing: true,
+                                    aspect: [1, 1],
+                                    quality: 0.8,
+                                    base64: true,
+                                });
+                                handleImageResult(result);
+                            } catch (error) {
+                                handleImageError(error);
+                            }
+                        }
+                    },
+                    {
+                        text: "Choose from Library",
+                        onPress: async () => {
+                            try {
+                                 let result = await ImagePicker.launchImageLibraryAsync({
+                                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                                    allowsEditing: true,
+                                    aspect: [1, 1],
+                                    quality: 0.8,
+                                    base64: true,
+                                });
+                                handleImageResult(result);
+                            } catch (error) {
+                                handleImageError(error);
+                            }
+                        }
+                    },
+                    {
+                        text: "Cancel",
+                        style: "cancel"
+                    }
+                ]
+            );
         }
-
-        // Ask user for source
-        Alert.alert(
-            "Select Image Source",
-            "Choose where to get the image from:",
-            [
-                {
-                    text: "Take Photo",
-                    onPress: async () => {
-                        try {
-                            let result = await ImagePicker.launchCameraAsync({
-                                allowsEditing: true,
-                                aspect: [1, 1], // Enforce square aspect ratio
-                                quality: 0.8, // Slightly higher quality
-                                base64: true,
-                            });
-                            handleImageResult(result);
-                        } catch (error) {
-                            handleImageError(error);
-                        }
-                    }
-                },
-                {
-                    text: "Choose from Library",
-                    onPress: async () => {
-                        try {
-                             let result = await ImagePicker.launchImageLibraryAsync({
-                                mediaTypes: ImagePicker.MediaTypeOptions.Images, // Keep this correct type
-                                allowsEditing: true,
-                                aspect: [1, 1], // Enforce square aspect ratio
-                                quality: 0.8, // Slightly higher quality
-                                base64: true,
-                            });
-                            handleImageResult(result);
-                        } catch (error) {
-                            handleImageError(error);
-                        }
-                    }
-                },
-                {
-                    text: "Cancel",
-                    style: "cancel"
-                }
-            ]
-        );
     };
 
     // Helper function to handle result from either picker
@@ -286,9 +299,40 @@ export default function NewInspectionScreen() {
             const token = await getToken();
             if (!token) throw new Error("Authentication token not found.");
 
-            const audioBase64 = await FileSystem.readAsStringAsync(audioUri, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
+            let audioBase64: string | null = null;
+
+            if (Platform.OS === 'web') {
+                // Web: Fetch the blob URI and convert to base64
+                console.log("Transcribing audio on web, fetching blob data...");
+                try {
+                    const response = await fetch(audioUri);
+                    const blob = await response.blob();
+                    audioBase64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    // Remove the "data:*/*;base64," prefix
+                    if (audioBase64) {
+                        audioBase64 = audioBase64.split(',')[1];
+                    }
+                } catch (fetchError) {
+                    console.error("Failed to fetch or convert blob:", fetchError);
+                    throw new Error("Could not process audio data for web.");
+                }
+
+            } else {
+                 // Native: Use FileSystem API
+                 console.log("Transcribing audio on native, reading file...");
+                 audioBase64 = await FileSystem.readAsStringAsync(audioUri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+            }
+
+            if (!audioBase64) {
+                 throw new Error("Failed to get Base64 audio data.");
+            }
 
             console.log('Sending audio to backend for transcription...');
             // Replace with your actual backend endpoint if different
@@ -475,8 +519,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     imagePicker: {
-        width: imageSize,
-        height: imageSize,
+        // Common styles
         backgroundColor: '#e9ecef',
         justifyContent: 'center',
         alignItems: 'center',
@@ -486,6 +529,18 @@ const styles = StyleSheet.create({
         borderColor: '#ced4da',
         overflow: 'hidden',
         alignSelf: 'center',
+        // Platform-specific sizing
+        ...Platform.select({
+            web: {
+                width: '90%', // Use percentage width on web
+                maxWidth: 500, // Set a maximum pixel width
+                aspectRatio: 1, // Maintain square shape based on width
+            },
+            default: { // Native platforms (iOS, Android)
+                width: imageSize,
+                height: imageSize,
+            },
+        }),
     },
     imagePlaceholder: {
         justifyContent: 'center',
