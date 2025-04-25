@@ -15,6 +15,7 @@ import { COLORS } from '../styles/colors';
 import NewInspectionScreen from '../../app/(tabs)/newInspection';
 import InspectionHistoryScreen from '../screens/InspectionHistoryScreen';
 import ProfileSettingsScreen from '../screens/ProfileSettingsScreen';
+import WelcomeScreen from '../screens/WelcomeScreen';
 
 // Define Drawer Param List
 export type RootDrawerParamList = {
@@ -72,7 +73,27 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
 
 // Root Navigator Setup
 const RootNavigator: React.FC = () => {
-  // Always render the Drawer Navigator now
+  // Add back the user check here temporarily
+  const { user, isLoaded } = useUser();
+
+  if (!isLoaded) {
+    return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+             <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+    );
+  }
+
+  // Check if the user has selected a state yet
+  const needsStateSelection = !user?.unsafeMetadata?.inspectionState;
+
+  if (needsStateSelection && user) {
+    // If state is not set, render WelcomeScreen
+    console.log("User state metadata missing, rendering WelcomeScreen.");
+    return <WelcomeScreen />;
+  }
+
+  // If state is set (or user not loaded), render the Drawer Navigator
   return (
     <Drawer.Navigator
         initialRouteName="NewInspection"
@@ -98,6 +119,7 @@ const RootNavigator: React.FC = () => {
             component={NewInspectionScreen}
             options={{
                 title: 'New Inspection',
+                drawerLabel: 'New Inspection',
                 drawerIcon: ({ color, size }: { color: string; size: number }) => (
                     <Ionicons name="add-circle-outline" color={color} size={size} />
                 ),
@@ -107,7 +129,8 @@ const RootNavigator: React.FC = () => {
             name="InspectionHistory"
             component={InspectionHistoryScreen}
             options={{
-                title: 'Inspection History',
+                title: '',
+                drawerLabel: 'Inspection History',
                 drawerIcon: ({ color, size }: { color: string; size: number }) => (
                     <Ionicons name="time-outline" color={color} size={size} />
                 ),
@@ -117,7 +140,8 @@ const RootNavigator: React.FC = () => {
             name="ProfileSettings"
             component={ProfileSettingsScreen}
             options={{
-                title: 'Profile',
+                title: '',
+                drawerLabel: 'Profile',
                 drawerIcon: ({ color, size }: { color: string; size: number }) => (
                     <Ionicons name="person-circle-outline" color={color} size={size} />
                 ),
