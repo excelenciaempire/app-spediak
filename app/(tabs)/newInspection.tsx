@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Button, Image, TextInput, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity, Platform, Dimensions, Modal } from 'react-native';
+import { View, Text, Button, Image, TextInput, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity, Platform, Dimensions, Modal, KeyboardAvoidingView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import axios from 'axios';
@@ -337,92 +337,115 @@ export default function NewInspectionScreen() {
     useEffect(() => {
         return () => {
             if (recording) {
-                console.log('Unmounting - stopping recording');
-                recording.stopAndUnloadAsync().catch(e => console.error("Error stopping recording on unmount:", e));
+                console.log('Unmounting - checking if recording needs to be stopped');
+
+                try {
+                    if (recording.getStatusAsync) {
+                        recording.getStatusAsync().then(status => {
+                            if (status.isRecording || !status.isDoneRecording) {
+                                console.log('Recording still active, stopping now...');
+                                recording.stopAndUnloadAsync()
+                                    .then(() => console.log("Recording stopped safely on unmount"))
+                                    .catch(e => console.error("Error stopping recording on unmount:", e));
+                            } else {
+                                console.log("Recording already stopped or unloaded.");
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.warn("Safe cleanup failed or recording was already unloaded:", err);
+                }
             }
         };
     }, [recording]);
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-            <Text style={styles.title}>New Defect Inspection</Text>
-            <Text style={styles.userStateText}>State: {userState}</Text>
+        <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.contentContainer}
+            keyboardShouldPersistTaps="handled"
+        >
+            <KeyboardAvoidingView
+                style={{ width: '100%' }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                enabled
+            >
+                <Text style={styles.userStateText}>State: {userState}</Text>
 
-            <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-                {imageUri ? (
-                    <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-                ) : (
-                    <View style={styles.imagePlaceholder}>
-                        <ImagePlus size={50} color="#6c757d" />
-                        <Text style={styles.imagePlaceholderText}>Tap to select image</Text>
-                    </View>
-                )}
-            </TouchableOpacity>
-
-            <View style={styles.inputContainer}>
-                <TextInput
-                    style={styles.input}
-                    placeholder="Describe the image and provide details..."
-                    value={description}
-                    onChangeText={setDescription}
-                    multiline
-                    editable={!isRecording && !isTranscribing}
-                />
-                <TouchableOpacity
-                    style={styles.micButton}
-                    onPress={isRecording ? stopRecording : startRecording}
-                    disabled={isTranscribing}
-                    >
-                    {isRecording ? (
-                         <MicOff size={24} color="#dc3545" />
-                    ) : isTranscribing ? (
-                         <ActivityIndicator size="small" color="#007bff" />
+                <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                    {imageUri ? (
+                        <Image source={{ uri: imageUri }} style={styles.imagePreview} />
                     ) : (
-                         <Mic size={24} color="#007bff" />
+                        <View style={styles.imagePlaceholder}>
+                            <ImagePlus size={50} color="#6c757d" />
+                            <Text style={styles.imagePlaceholderText}>Tap to select image</Text>
+                        </View>
                     )}
                 </TouchableOpacity>
-            </View>
 
-            <TouchableOpacity
-                style={[styles.button, styles.generateButton, (!imageUri || !description || isGenerating) && styles.buttonDisabled]}
-                onPress={handleGenerateDdid}
-                disabled={!imageUri || !description || isGenerating}
-            >
-                {isGenerating ? (
-                    <>
-                        <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
-                        <Text style={styles.buttonText}>Generate Statement</Text>
-                    </>
-                ) : (
-                    <>
-                        <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
-                        <Text style={styles.buttonText}>Generate Statement</Text>
-                    </>
-                )}
-            </TouchableOpacity>
+                <View style={styles.inputContainer}>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Describe the image and provide details..."
+                        value={description}
+                        onChangeText={setDescription}
+                        multiline
+                        editable={!isRecording && !isTranscribing}
+                    />
+                    <TouchableOpacity
+                        style={styles.micButton}
+                        onPress={isRecording ? stopRecording : startRecording}
+                        disabled={isTranscribing}
+                        >
+                        {isRecording ? (
+                             <MicOff size={24} color="#dc3545" />
+                        ) : isTranscribing ? (
+                             <ActivityIndicator size="small" color="#007bff" />
+                        ) : (
+                             <Mic size={24} color="#007bff" />
+                        )}
+                    </TouchableOpacity>
+                </View>
 
-            <TouchableOpacity
-                style={[styles.button, styles.newChatButton]}
-                onPress={resetInspection}
-            >
-                <RefreshCcw size={20} color="#333" style={styles.buttonIcon} />
-                <Text style={styles.buttonTextSecondary}>New Chat</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.button, styles.generateButton, (!imageUri || !description || isGenerating) && styles.buttonDisabled]}
+                    onPress={handleGenerateDdid}
+                    disabled={!imageUri || !description || isGenerating}
+                >
+                    {isGenerating ? (
+                        <>
+                            <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
+                            <Text style={styles.buttonText}>Generate Statement</Text>
+                        </>
+                    ) : (
+                        <>
+                            <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
+                            <Text style={styles.buttonText}>Generate Statement</Text>
+                        </>
+                    )}
+                </TouchableOpacity>
 
-            {error && <Text style={styles.errorText}>{error}</Text>}
+                <TouchableOpacity
+                    style={[styles.button, styles.newChatButton]}
+                    onPress={resetInspection}
+                >
+                    <RefreshCcw size={20} color="#333" style={styles.buttonIcon} />
+                    <Text style={styles.buttonTextSecondary}>Clean Chat</Text>
+                </TouchableOpacity>
 
+                {error && <Text style={styles.errorText}>{error}</Text>}
+            </KeyboardAvoidingView>
             <DdidModal
                 visible={showDdidModal}
                 onClose={() => setShowDdidModal(false)}
                 ddidText={generatedDdid || ''}
              />
-
-            {/* Analyzing Pop-up Modal */}
             <Modal
                 transparent={true}
                 animationType="fade"
                 visible={showAnalyzingPopup}
-                onRequestClose={() => {}} // Prevent closing by back button
+                onRequestClose={() => {}}
             >
                 <View style={styles.popupOverlay}>
                     <View style={styles.popupContainer}>
@@ -431,7 +454,6 @@ export default function NewInspectionScreen() {
                     </View>
                 </View>
             </Modal>
-
         </ScrollView>
     );
 }
@@ -442,19 +464,15 @@ const styles = StyleSheet.create({
         backgroundColor: '#f8f9fa',
     },
     contentContainer: {
+        flexGrow: 1,
         padding: 20,
         alignItems: 'center',
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 5,
-        color: '#333',
     },
     userStateText: {
         fontSize: 14,
         color: '#6c757d',
         marginBottom: 15,
+        textAlign: 'center',
     },
     imagePicker: {
         width: imageSize,
@@ -467,6 +485,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#ced4da',
         overflow: 'hidden',
+        alignSelf: 'center',
     },
     imagePlaceholder: {
         justifyContent: 'center',
@@ -525,6 +544,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 1.41,
         elevation: 2,
+        alignSelf: 'center',
     },
     generateButton: {
         backgroundColor: '#007bff',
@@ -555,13 +575,14 @@ const styles = StyleSheet.create({
         color: 'red',
         marginTop: 10,
         textAlign: 'center',
+        width: '90%',
+        alignSelf: 'center',
     },
-    // --- Styles for Analyzing Pop-up ---
     popupOverlay: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.4)', // Semi-transparent background
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
     popupContainer: {
         backgroundColor: 'white',
@@ -580,5 +601,4 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
     },
-    // --- End Styles for Analyzing Pop-up ---
 }); 
