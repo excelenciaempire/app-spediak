@@ -124,15 +124,12 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   scrollViewContent: {
     flexGrow: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    width: '100%',
-    maxWidth: 500,
   },
   spediakTitle: {
     fontSize: 36,
