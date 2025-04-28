@@ -22,10 +22,15 @@ module.exports = {
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "extra": {
-      "clerkPublishableKey": process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
-    }
+      "clerkPublishableKey": process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
+      "apiUrl": process.env.EXPO_PUBLIC_API_URL
+    },
+    "plugins": [
+      "expo-router"
+    ]
   }
 };
