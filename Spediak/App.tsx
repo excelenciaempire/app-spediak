@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, Platform } from 'react-native';
 import AuthNavigator from "./src/navigation/AuthNavigator"; // Revert path
 import RootNavigator from "./src/navigation/RootNavigator"; // Import RootNavigator
 
@@ -30,37 +30,41 @@ const tokenCache = {
   },
 };
 
-
 export default function App() {
   return (
-    <ClerkProvider
-      tokenCache={tokenCache}
-      publishableKey={clerkPublishableKey}
-    >
-      <NavigationContainer>
-        <SignedIn>
-          {/* Restore RootNavigator */}
-          {/* <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-            <Text>Signed In - Debug View</Text>
-          </View> */}
-          <RootNavigator />
-        </SignedIn>
-        <SignedOut>
-           <AuthNavigator />
-        </SignedOut>
-      </NavigationContainer>
-      <StatusBar style="auto" />
-    </ClerkProvider>
+    <View style={styles.appWrapper}>
+      <ClerkProvider
+        tokenCache={tokenCache}
+        publishableKey={clerkPublishableKey}
+      >
+        <NavigationContainer>
+          <SignedIn>
+            {/* Restore RootNavigator */}
+            {/* <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+              <Text>Signed In - Debug View</Text>
+            </View> */}
+            <RootNavigator />
+          </SignedIn>
+          <SignedOut>
+             <AuthNavigator />
+          </SignedOut>
+        </NavigationContainer>
+        <StatusBar style="auto" />
+      </ClerkProvider>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // container: {
-  //   flex: 1,
-  //   backgroundColor: '#fff',
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  // },
+  appWrapper: {
+    flex: 1,
+    ...(Platform.OS === 'web' && {
+      display: 'flex',
+      justifyContent: 'center',
+      minHeight: '100%',
+      backgroundColor: '#f8f9fa',
+    }),
+  },
 });
 
 /*

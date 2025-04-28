@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
@@ -6,7 +6,7 @@ import {
   DrawerItem,
   DrawerContentComponentProps,
 } from '@react-navigation/drawer';
-import { View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../styles/colors';
@@ -26,24 +26,33 @@ export type RootDrawerParamList = {
 
 const Drawer = createDrawerNavigator<RootDrawerParamList>();
 
-// Custom Drawer Content Component (Step 18)
-const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
+// --- Reusable Sidebar/Drawer Content ---
+interface SidebarContentProps {
+  onNavigate: (screen: keyof RootDrawerParamList) => void;
+  activeScreen?: keyof RootDrawerParamList; // Optional for highlighting active item on web
+}
+
+const SidebarContent: React.FC<SidebarContentProps> = ({ onNavigate, activeScreen }) => {
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
-
-  // Retrieve user state
   const userState = user?.unsafeMetadata?.inspectionState as string || 'North Carolina';
 
   if (!isLoaded) {
-    // Render nothing while Clerk is loading user data
-    return null;
+    return <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primary} />;
   }
 
+  const drawerItems: { name: keyof RootDrawerParamList; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { name: 'NewInspection', label: 'New Inspection', icon: 'add-circle-outline' },
+    { name: 'InspectionHistory', label: 'Inspection History', icon: 'time-outline' },
+    { name: 'ProfileSettings', label: 'Profile', icon: 'person-circle-outline' },
+  ];
+
   return (
-    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: COLORS.white }}>
+      {/* Header */}
       <View style={styles.drawerHeader}>
         <Image
-          source={user?.imageUrl ? { uri: user.imageUrl } : require('../../assets/icon.png')} // Corrected path
+          source={user?.imageUrl ? { uri: user.imageUrl } : require('../../assets/icon.png')}
           style={styles.profileImage}
         />
         <Text style={styles.userName}>{user?.fullName || 'User Name'}</Text>
@@ -51,61 +60,114 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
         <Text style={styles.userState}>{`State: ${userState}`}</Text>
       </View>
 
+      {/* Navigation Items */}
       <View style={styles.drawerListContainer}>
-        <DrawerItemList {...props} />
+        {drawerItems.map((item) => (
+          <TouchableOpacity
+            key={item.name}
+            style={[
+              styles.sidebarItem,
+              activeScreen === item.name && styles.sidebarItemActive, // Highlight active item
+            ]}
+            onPress={() => onNavigate(item.name)}
+          >
+            <Ionicons name={item.icon} size={22} color={activeScreen === item.name ? COLORS.primary : COLORS.darkText} />
+            <Text style={[
+              styles.sidebarLabel,
+              activeScreen === item.name && styles.sidebarLabelActive,
+            ]}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Logout Button */}
+      {/* Footer (Logout) */}
       <View style={styles.drawerFooter}>
-        <DrawerItem
-          label="Log Out"
-          labelStyle={styles.logoutLabel}
-          icon={({ color, size }: { color: string; size: number }) => (
-            <Ionicons name="log-out-outline" color={COLORS.primary} size={size} />
-          )}
-          onPress={() => signOut()} // Call Clerk signout
-          style={styles.logoutItem}
-        />
+        <TouchableOpacity
+          style={styles.sidebarItem} // Reuse style
+          onPress={() => signOut()}
+        >
+          <Ionicons name="log-out-outline" color={COLORS.primary} size={22} />
+          <Text style={[styles.sidebarLabel, styles.logoutLabel]}>Log Out</Text>
+        </TouchableOpacity>
       </View>
+    </View>
+  );
+};
+
+// --- Original Custom Drawer Content (Now uses SidebarContent) ---
+const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
+  // Extract active route name for potential highlighting (less critical in drawer)
+  const activeRouteName = props.state?.routes[props.state.index]?.name as keyof RootDrawerParamList | undefined;
+
+  return (
+    <DrawerContentScrollView {...props}>
+       <SidebarContent
+         onNavigate={(screen) => props.navigation.navigate(screen)}
+         activeScreen={activeRouteName}
+       />
     </DrawerContentScrollView>
   );
 };
 
-// Root Navigator Setup
+// --- Root Navigator Setup (Conditional Logic) ---
 const RootNavigator: React.FC = () => {
-  // Add back the user check here temporarily
   const { user, isLoaded } = useUser();
+  const { width } = useWindowDimensions(); // Use hook for dynamic width
+  const [activeScreen, setActiveScreen] = useState<keyof RootDrawerParamList>('NewInspection');
 
+  const isWebLarge = Platform.OS === 'web' && width > 768;
+
+  // Loading State
   if (!isLoaded) {
     return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={styles.loadingContainer}>
              <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
     );
   }
 
-  // Check if the user has selected a state yet
+  // Welcome Screen Logic
   const needsStateSelection = !user?.unsafeMetadata?.inspectionState;
-
   if (needsStateSelection && user) {
-    // If state is not set, render WelcomeScreen
     console.log("User state metadata missing, rendering WelcomeScreen.");
     return <WelcomeScreen />;
   }
 
-  // If state is set (or user not loaded), render the Drawer Navigator
+  // --- Web Dashboard Layout (Large Screens) ---
+  if (isWebLarge) {
+    let CurrentScreenComponent = NewInspectionScreen; // Default
+    if (activeScreen === 'InspectionHistory') {
+        CurrentScreenComponent = InspectionHistoryScreen;
+    } else if (activeScreen === 'ProfileSettings') {
+        CurrentScreenComponent = ProfileSettingsScreen;
+    }
+
+    return (
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+            {/* Fixed Sidebar */}
+            <View style={styles.webSidebar}>
+                 <SidebarContent onNavigate={setActiveScreen} activeScreen={activeScreen} />
+            </View>
+            {/* Main Content Area */}
+            <View style={styles.webContent}>
+                <CurrentScreenComponent />
+                 {/* Maybe add a header here if needed for web dashboard? */}
+            </View>
+        </View>
+    );
+  }
+
+  // --- Mobile/Small Web Drawer Layout ---
   return (
     <Drawer.Navigator
         initialRouteName="NewInspection"
         drawerContent={(props: DrawerContentComponentProps) => <CustomDrawerContent {...props} />}
-        screenOptions={({ navigation }) => ({
-            headerStyle: {
-                backgroundColor: COLORS.primary,
-            },
+        screenOptions={({ navigation }) => ({ // Keep hamburger menu for drawer
+            headerStyle: { backgroundColor: COLORS.primary },
             headerTintColor: COLORS.white,
-            headerTitleStyle: {
-                fontWeight: 'bold',
-            },
+            headerTitleStyle: { fontWeight: 'bold' },
             headerLeft: () => (
               <TouchableOpacity onPress={() => navigation.toggleDrawer()} style={{ marginLeft: 15 }}>
                 <Ionicons name="menu" size={28} color={COLORS.white} />
@@ -113,59 +175,42 @@ const RootNavigator: React.FC = () => {
             ),
             drawerActiveTintColor: COLORS.primary,
             drawerInactiveTintColor: COLORS.darkText,
-             drawerLabelStyle: {
-                marginLeft: 0,
-                fontSize: 16,
-             }
+            drawerLabelStyle: { marginLeft: -20, fontSize: 16 } // Adjust label style if needed
         })}
-        >
-        <Drawer.Screen
+    >
+        {/* Screens remain the same */}
+         <Drawer.Screen
             name="NewInspection"
             component={NewInspectionScreen}
-            options={{
-                title: 'New Inspection',
-                drawerLabel: 'New Inspection',
-                drawerIcon: ({ color, size }: { color: string; size: number }) => (
-                    <Ionicons name="add-circle-outline" color={color} size={size} />
-                ),
-            }}
+            options={{ title: 'New Inspection' }}
         />
         <Drawer.Screen
             name="InspectionHistory"
             component={InspectionHistoryScreen}
-            options={{
-                title: '',
-                drawerLabel: 'Inspection History',
-                drawerIcon: ({ color, size }: { color: string; size: number }) => (
-                    <Ionicons name="time-outline" color={color} size={size} />
-                ),
-            }}
+            options={{ title: 'Inspection History' }}
         />
         <Drawer.Screen
             name="ProfileSettings"
             component={ProfileSettingsScreen}
-            options={{
-                title: '',
-                drawerLabel: 'Profile',
-                drawerIcon: ({ color, size }: { color: string; size: number }) => (
-                    <Ionicons name="person-circle-outline" color={color} size={size} />
-                ),
-            }}
+            options={{ title: 'Profile Settings' }}
         />
     </Drawer.Navigator>
   );
 };
 
-// Styles for Custom Drawer
+// --- Styles ---
 const styles = StyleSheet.create({
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: COLORS.white,
     },
+    // Styles for SidebarContent (used by both Drawer and Web Sidebar)
     drawerHeader: {
         padding: 20,
-        backgroundColor: COLORS.secondary, // Light background for header
+        paddingTop: Platform.OS === 'ios' ? 50 : 20, // Adjust top padding for notch
+        backgroundColor: COLORS.secondary,
         borderBottomWidth: 1,
         borderBottomColor: '#ddd',
         alignItems: 'center',
@@ -175,7 +220,7 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 40,
         marginBottom: 10,
-        backgroundColor: '#ccc', // Placeholder background
+        backgroundColor: '#ccc',
     },
     userName: {
         fontSize: 18,
@@ -194,22 +239,54 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
     },
     drawerListContainer: {
-       flex: 1, // Takes up remaining space
+       flex: 1,
        paddingTop: 10,
     },
     drawerFooter: {
        borderTopWidth: 1,
        borderTopColor: '#ddd',
-       paddingBottom: 10,
+       paddingBottom: Platform.OS === 'ios' ? 20 : 10, // Safe area padding bottom
+       paddingTop: 10,
     },
-    logoutItem: {
-      // Add specific styles if needed, e.g., different background
+    // Style for individual items in SidebarContent
+    sidebarItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        marginBottom: 5,
+    },
+    sidebarItemActive: {
+        backgroundColor: COLORS.primary + '1A', // Light primary color for active background
+        borderLeftWidth: 3,
+        borderLeftColor: COLORS.primary,
+        paddingLeft: 17,
+    },
+    sidebarLabel: {
+        marginLeft: 15, // Space between icon and text
+        fontSize: 16,
+        fontWeight: '500',
+        color: COLORS.darkText,
+    },
+    sidebarLabelActive: {
+       color: COLORS.primary,
+       fontWeight: 'bold',
     },
     logoutLabel: {
         fontWeight: 'bold',
         color: COLORS.primary,
-        marginLeft: 0,
-        fontSize: 16,
+    },
+    // Styles specific to Web Dashboard Layout
+    webSidebar: {
+        width: 280, // Fixed width for the sidebar
+        borderRightWidth: 1,
+        borderRightColor: '#ddd',
+        backgroundColor: COLORS.white, // Or another suitable background
+    },
+    webContent: {
+        flex: 1, // Takes remaining space
+        // Add padding or background as needed for the content area
+         backgroundColor: '#f8f9fa', // Match the app background
     },
 });
 

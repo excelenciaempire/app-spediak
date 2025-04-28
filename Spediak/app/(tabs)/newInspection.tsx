@@ -18,7 +18,7 @@ import { BASE_URL } from '../../src/config/api'; // Import centralized BASE_URL
 // --- End Base URL Definition ---
 
 const { width } = Dimensions.get('window'); // Get screen width
-const imageSize = width * 0.9; // Calculate square image size (90% of width)
+// const imageSize = width * 0.9; // Keep this if still needed for native
 
 export default function NewInspectionScreen() {
     const [imageUri, setImageUri] = useState<string | null>(null);
@@ -506,10 +506,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f8f9fa',
+        paddingHorizontal: Platform.OS === 'web' ? width * 0.15 : 20,
+        paddingVertical: 20,
     },
     contentContainer: {
         flexGrow: 1,
-        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'flex-start',
     },
     userStateText: {
         fontSize: 14,
@@ -518,7 +521,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     imagePicker: {
-        // Common styles
         backgroundColor: '#e9ecef',
         justifyContent: 'center',
         alignItems: 'center',
@@ -528,16 +530,15 @@ const styles = StyleSheet.create({
         borderColor: '#ced4da',
         overflow: 'hidden',
         alignSelf: 'center',
-        // Platform-specific sizing
         ...Platform.select({
             web: {
-                width: '90%', // Use percentage width on web
-                maxWidth: 500, // Set a maximum pixel width
-                aspectRatio: 1, // Maintain square shape based on width
+                width: '100%',
+                maxWidth: 500,
+                aspectRatio: 1,
             },
-            default: { // Native platforms (iOS, Android)
-                width: imageSize,
-                height: imageSize,
+            default: {
+                width: width * 0.9,
+                height: width * 0.9,
             },
         }),
     },
@@ -593,14 +594,15 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 25,
         borderRadius: 25,
-        width: '80%',
+        maxWidth: 500,
+        alignSelf: 'center',
+        width: Platform.OS === 'web' ? '100%' : '80%',
         marginBottom: 15,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.2,
         shadowRadius: 1.41,
         elevation: 2,
-        alignSelf: 'center',
     },
     generateButton: {
         backgroundColor: '#007bff',
