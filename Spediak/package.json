@@ -7,8 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "npx expo export -p web",
-    "deploy": "npx expo export -p web && vercel --prod"
+    "build": "npx expo export -p web --output-dir dist",
+    "deploy": "npx expo export -p web --output-dir dist && vercel --prod"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.10.0",
