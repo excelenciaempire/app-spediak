@@ -6,7 +6,7 @@ import {
   DrawerItem,
   DrawerContentComponentProps,
 } from '@react-navigation/drawer';
-import { View, Text, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../styles/colors';
@@ -98,7 +98,7 @@ const RootNavigator: React.FC = () => {
     <Drawer.Navigator
         initialRouteName="NewInspection"
         drawerContent={(props: DrawerContentComponentProps) => <CustomDrawerContent {...props} />}
-        screenOptions={{
+        screenOptions={({ navigation }) => ({
             headerStyle: {
                 backgroundColor: COLORS.primary,
             },
@@ -106,13 +106,18 @@ const RootNavigator: React.FC = () => {
             headerTitleStyle: {
                 fontWeight: 'bold',
             },
+            headerLeft: () => (
+              <TouchableOpacity onPress={() => navigation.toggleDrawer()} style={{ marginLeft: 15 }}>
+                <Ionicons name="menu" size={28} color={COLORS.white} />
+              </TouchableOpacity>
+            ),
             drawerActiveTintColor: COLORS.primary,
             drawerInactiveTintColor: COLORS.darkText,
              drawerLabelStyle: {
                 marginLeft: 0,
                 fontSize: 16,
              }
-        }}
+        })}
         >
         <Drawer.Screen
             name="NewInspection"

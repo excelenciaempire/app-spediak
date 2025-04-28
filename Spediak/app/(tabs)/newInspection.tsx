@@ -510,7 +510,6 @@ const styles = StyleSheet.create({
     contentContainer: {
         flexGrow: 1,
         padding: 20,
-        alignItems: 'center',
     },
     userStateText: {
         fontSize: 14,
@@ -558,6 +557,8 @@ const styles = StyleSheet.create({
     inputContainer: {
         flexDirection: 'row',
         width: '100%',
+        maxWidth: 500,
+        alignSelf: 'center',
         alignItems: 'flex-start',
         marginBottom: 20,
         position: 'relative',
