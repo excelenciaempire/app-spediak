@@ -24,10 +24,7 @@ module.exports = {
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
-      "output": "static",
-      "router": {
-        "mode": "hash"
-      }
+      "output": "static"
     },
     "extra": {
       "clerkPublishableKey": process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
