@@ -8,8 +8,27 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
+// Configuración de CORS
+const allowedOrigins = [
+  'https://spediak-approved.vercel.app', // Dominio de producción en Vercel
+  'http://localhost:8081', // Para desarrollo local con Expo Web
+  'http://localhost:19006', // Alternativa para desarrollo local con Expo
+  'http://localhost:3000' // Otra posible alternativa para desarrollo local
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permitir solicitudes sin origen (como aplicaciones móviles)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Origen bloqueado por CORS:', origin);
+      callback(new Error('No permitido por CORS'));
+    }
+  },
+  credentials: true // Permitir credenciales (cookies, headers de autenticación)
+}));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -24,4 +43,5 @@ app.get('/', (req, res) => {
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en http://0.0.0.0:${PORT}`);
+  console.log('Orígenes CORS permitidos:', allowedOrigins);
 });
