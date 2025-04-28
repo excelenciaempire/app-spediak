@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 5000;
 
 // Configuración de CORS
 const allowedOrigins = [
+  'https://app-spediak.vercel.app', // Add this domain
   'https://spediak-approved.vercel.app', // Dominio de producción en Vercel
   'http://localhost:8081', // Para desarrollo local con Expo Web
   'http://localhost:19006', // Alternativa para desarrollo local con Expo
