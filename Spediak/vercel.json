@@ -3,5 +3,5 @@
   "outputDirectory": "web-build",
   "devCommand": "npm start",
   "installCommand": "npm install",
-  "framework": "react"
+  "framework": "other"
 } 
