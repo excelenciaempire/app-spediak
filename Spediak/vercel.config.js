@@ -2,8 +2,12 @@ module.exports = {
   rewrites: [
     {
       source: '/(.*)',
-      destination: '/index.html'
+      destination: '/'
     }
   ],
-  trailingSlash: false
+  trailingSlash: false,
+  routes: [
+    { handle: 'filesystem' },
+    { src: '/(.*)', dest: '/' }
+  ]
 }; 

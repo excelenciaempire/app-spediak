@@ -23,11 +23,18 @@ module.exports = {
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "static",
+      "router": {
+        "mode": "hash"
+      }
     },
     "extra": {
       "clerkPublishableKey": process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
-      "apiUrl": process.env.EXPO_PUBLIC_API_URL
+      "apiUrl": process.env.EXPO_PUBLIC_API_URL,
+      "eas": {
+        "projectId": "your-project-id"
+      }
     },
     "plugins": [
       "expo-router"
