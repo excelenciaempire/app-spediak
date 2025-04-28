@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "buildCommand": "npm install && npx expo export -p web",
+  "outputDirectory": "web-build",
+  "framework": "other"
+} 
