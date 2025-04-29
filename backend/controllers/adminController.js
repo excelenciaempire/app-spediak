@@ -72,21 +72,33 @@ const getAllUsers = async (req, res) => {
   // Assumes requireAdmin middleware has already run
   console.log('[AdminUsers] Attempting to fetch all users from Clerk...');
   try {
-    // Fetch all users. You might want pagination for large user bases.
-    // See Clerk Backend SDK docs for pagination options (limit, offset, etc.)
-    const userList = await clerkClient.users.getUserList({ limit: 500 }); // Example limit
-    
+    // 1. Fetch all users from Clerk
+    const userList = await clerkClient.users.getUserList({ limit: 500 });
     console.log(`[AdminUsers] Fetched ${userList.length} users from Clerk.`);
 
-    // Map to a simpler format for the frontend if desired
+    // 2. Fetch inspection counts from database
+    let inspectionCountsMap = new Map(); // Initialize the map here, outside the inner try/catch
+    try {
+      console.log('[AdminUsers] Fetching inspection counts...');
+      const countResult = await pool.query('SELECT user_id, COUNT(*) AS inspection_count FROM inspections WHERE user_id IS NOT NULL GROUP BY user_id');
+      countResult.rows.forEach(row => {
+        inspectionCountsMap.set(row.user_id, parseInt(row.inspection_count, 10));
+      });
+      console.log(`[AdminUsers] Fetched counts for ${inspectionCountsMap.size} users.`);
+    } catch (dbError) {
+      console.error('[AdminUsers] Error fetching inspection counts:', dbError);
+      // inspectionCountsMap will remain empty if DB query fails, which is handled below
+    }
+
+    // 3. Format user data, including counts, state, and photo
     const formattedUsers = userList.map(user => ({
       id: user.id,
       name: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
       email: user.primaryEmailAddress?.emailAddress || 'N/A',
       createdAt: user.createdAt,
-      profilePhoto: user.imageUrl || null, // Add profile photo URL
-      state: user.publicMetadata?.state || null, // Add state from public metadata
-      inspectionCount: inspectionCountsMap.get(user.id) || 0 // Add inspection count
+      profilePhoto: user.imageUrl || null, 
+      state: user.publicMetadata?.state || null, 
+      inspectionCount: inspectionCountsMap.get(user.id) || 0 // Now safe to call .get()
     }));
 
     return res.json(formattedUsers);
