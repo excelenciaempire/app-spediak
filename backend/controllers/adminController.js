@@ -31,8 +31,9 @@ const getAllInspectionsWithUserDetails = async (req, res) => {
     if (userIds.length > 0) {
       console.log('[AdminInspections] Fetching user details from Clerk...');
       try {
-        const users = await clerkClient.users.getUserList({ userId: userIds, limit: userIds.length }); // Ensure limit covers all IDs
+        const users = await clerkClient.users.getUserList({ userId: userIds, limit: userIds.length });
         console.log(`[AdminInspections] Fetched details for ${users.length} users from Clerk.`);
+        console.log('[AdminInspections] Raw Clerk User Object (first user):', JSON.stringify(users[0], null, 2)); // Log raw user object
         users.forEach(user => {
           usersMap.set(user.id, {
             name: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
@@ -75,6 +76,7 @@ const getAllUsers = async (req, res) => {
     // 1. Fetch all users from Clerk
     const userList = await clerkClient.users.getUserList({ limit: 500 });
     console.log(`[AdminUsers] Fetched ${userList.length} users from Clerk.`);
+    console.log('[AdminUsers] Raw Clerk User Object (first user):', JSON.stringify(userList[0], null, 2)); // Log raw user object
 
     // 2. Fetch inspection counts from database
     let inspectionCountsMap = new Map(); // Initialize the map here, outside the inner try/catch
