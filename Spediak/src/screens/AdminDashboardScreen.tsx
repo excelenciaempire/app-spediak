@@ -129,8 +129,6 @@ const InspectionList: React.FC = () => {
                     <View style={styles.inspectionTextContainer}>
                         <Text style={styles.cardDescriptionLabel}>Description:</Text>
                         <Text style={styles.cardDescriptionText} numberOfLines={1}>{item.description}</Text>
-                        <Text style={styles.cardDescriptionLabel}>Statement:</Text>
-                        <Text style={styles.cardDescriptionText} numberOfLines={2}>{item.ddid}</Text>
                         <TouchableOpacity
                             style={styles.viewReportButton}
                             onPress={() => {
@@ -206,9 +204,10 @@ const UserList = () => {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const [userSearchQuery, setUserSearchQuery] = useState<string>(''); // State for user search
     const { getToken } = useAuth();
 
-     const fetchUsers = useCallback(async () => {
+    const fetchUsers = useCallback(async () => {
         console.log('[AdminUsers] Fetching all users data...');
         setError(null);
         try {
@@ -237,7 +236,19 @@ const UserList = () => {
         setIsRefreshing(false);
     }, [fetchUsers]);
 
-     const renderUserItem = ({ item }: { item: UserData }) => {
+    // Filter users based on search query
+    const processedUsers = useMemo(() => {
+        if (!userSearchQuery) {
+            return users;
+        }
+        const lowerCaseQuery = userSearchQuery.toLowerCase();
+        return users.filter(user =>
+            user.name?.toLowerCase().includes(lowerCaseQuery) ||
+            user.email?.toLowerCase().includes(lowerCaseQuery)
+        );
+    }, [users, userSearchQuery]);
+
+    const renderUserItem = ({ item }: { item: UserData }) => {
         return (
             <TouchableOpacity style={styles.userItemContainer} onPress={() => Alert.alert('User Profile', `User ID: ${item.id}`)}>
                 <View style={styles.userItemContent}>
@@ -268,18 +279,32 @@ const UserList = () => {
     if (error) return <Text style={styles.errorText}>{error}</Text>;
 
     return (
-         <FlatList
-            data={users}
-            renderItem={renderUserItem}
-            keyExtractor={(item: UserData) => item.id}
-            style={styles.list}
-            contentContainerStyle={{ padding: 15, paddingBottom: 20 }}
-            ListHeaderComponent={<Text style={styles.totalCountText}>Total Users: {users.length}</Text>}
-            ListEmptyComponent={<Text style={styles.emptyText}>No users found.</Text>}
-            refreshControl={
-                <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />
-            }
-        />
+        <View style={{flex: 1}}>
+            {/* Search Input for Users */}
+            <View style={styles.userSearchContainer}> 
+                <Search size={18} color="#888" style={styles.searchIcon} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search by name or email..."
+                    value={userSearchQuery}
+                    onChangeText={setUserSearchQuery}
+                    placeholderTextColor="#999"
+                />
+            </View>
+
+            <FlatList
+                data={processedUsers}
+                renderItem={renderUserItem}
+                keyExtractor={(item: UserData) => item.id}
+                style={styles.list}
+                contentContainerStyle={{ padding: 15, paddingTop: 0 }}
+                ListHeaderComponent={<Text style={styles.totalCountText}>Total Users: {processedUsers.length}</Text>}
+                ListEmptyComponent={<Text style={styles.emptyText}>{userSearchQuery ? 'No matching users found.' : 'No users found.'}</Text>}
+                refreshControl={
+                    <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />
+                }
+            />
+        </View>
     );
 };
 
@@ -553,6 +578,18 @@ const styles = StyleSheet.create({
         color: '#999',
         textAlign: 'right',
         marginLeft: 0, 
+    },
+    userSearchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        marginHorizontal: 15,
+        marginTop: 15, // Add space above search
+        marginBottom: 15, // Add space below search
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: '#ddd',
     },
 });
 

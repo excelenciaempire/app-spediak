@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, TextInput, FlatList, ActivityIndicator, Touchab
 import { useAuth } from '@clerk/clerk-expo';
 import { useNavigation } from '@react-navigation/native'; // Import useNavigation
 import axios from 'axios';
-import { Search, Trash2 } from 'lucide-react-native'; // Added Trash2
+import { Search, Trash2, Eye } from 'lucide-react-native'; // Added Trash2 and Eye
 import DdidModal from '../components/DdidModal'; // Step 41: Import Modal
 import { BASE_URL } from '../config/api'; // Import centralized BASE_URL
+import { COLORS } from '../styles/colors'; // Corrected path to styles
 
 // --- Define Base URL (Platform Specific) ---
 // const YOUR_COMPUTER_IP_ADDRESS = '<YOUR-COMPUTER-IP-ADDRESS>'; // Removed
@@ -190,30 +191,29 @@ export default function InspectionHistoryScreen() {
         console.log(`[renderItem] Rendering item ID: ${item.id}, Image URL: ${item.image_url}`);
 
         return (
-             // Step 41: Wrap item in TouchableOpacity for detail view
-            <TouchableOpacity
-                style={styles.itemContainer}
-                onPress={() => {
-                    // Use correct property name for logging and setting state
-                    console.log("Item tapped:", item.id, "Image URL:", item.image_url);
-                    setSelectedInspectionDdid(item.ddid);
-                    setSelectedImageUrl(item.image_url); // <--- Corrected: Use underscore
-                    setShowDetailModal(true);
-                }}
-                >
+            <View style={styles.itemContainer}>
                 <Image source={{ uri: item.image_url || 'https://via.placeholder.com/60' }} style={styles.itemThumbnail} />
                 <View style={styles.itemTextContainer}>
-                    {/* Show Description first, then DDID */}
                     <Text style={styles.itemDescriptionLabel}>Description:</Text>
                     <Text style={styles.itemDescription} numberOfLines={1} ellipsizeMode="tail">{item.description}</Text>
-                    <Text style={styles.itemDescriptionLabel}>Statement:</Text>
-                    <Text style={styles.itemDescription} numberOfLines={2} ellipsizeMode="tail">{item.ddid}</Text>
                     <Text style={styles.itemDate}>{dateTimeString}</Text>
                 </View>
+                <TouchableOpacity 
+                    style={styles.viewReportButton}
+                    onPress={() => {
+                        console.log("View Report tapped:", item.id, "Image URL:", item.image_url);
+                        setSelectedInspectionDdid(item.ddid);
+                        setSelectedImageUrl(item.image_url);
+                        setShowDetailModal(true);
+                    }}
+                >
+                    <Eye size={16} color={COLORS.primary} />
+                    <Text style={styles.viewReportButtonText}>View Report</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleDeleteInspection(item.id)} style={styles.deleteButton}>
                     <Trash2 size={20} color="#dc3545" />
                 </TouchableOpacity>
-            </TouchableOpacity>
+            </View>
         );
     };
 
@@ -339,8 +339,9 @@ const styles = StyleSheet.create({
     itemTextContainer: {
         flex: 1, 
         justifyContent: 'center',
+        marginRight: 8, // Add margin to prevent text overlap with buttons
     },
-    itemDescriptionLabel: { // Style for labels
+    itemDescriptionLabel: {
         fontSize: 11,
         color: '#888',
         fontWeight: '600',
@@ -348,17 +349,36 @@ const styles = StyleSheet.create({
         marginBottom: 1,
     },
     itemDescription: {
-        fontSize: 14, // Adjusted size slightly
+        fontSize: 14,
         color: '#333',
-        marginBottom: 4, // Space between description and date
+        marginBottom: 4, 
     },
     itemDate: {
         fontSize: 13,
         color: '#6c757d',
+        marginTop: 4, // Add margin top for spacing
+    },
+    viewReportButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 5,
+        paddingHorizontal: 10,
+        backgroundColor: COLORS.primary + '15',
+        borderRadius: 5,
+        alignSelf: 'center', // Center button vertically in its column
+        marginLeft: 'auto', // Push button towards the right (before delete)
+        marginRight: 8, // Space before delete button
+    },
+    viewReportButtonText: {
+        color: COLORS.primary,
+        fontSize: 13,
+        fontWeight: '500',
+        marginLeft: 5,
     },
     deleteButton: {
-        padding: 8, // Increase tappable area
-        marginLeft: 10, // Space from text content
+        padding: 8, 
+        // Removed marginLeft as spacing is handled by viewReportButton
     },
     loader: {
         marginTop: 50,
