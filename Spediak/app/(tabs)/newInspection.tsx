@@ -684,6 +684,7 @@ const styles = StyleSheet.create({
         maxWidth: 500, // Max width for input area
         marginBottom: 15,
         alignItems: 'center',
+        alignSelf: 'center', // Added to center the container
     },
     input: {
         flex: 1,
@@ -707,6 +708,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 10,
+        alignSelf: 'center', // Added to center the button
     },
     buttonText: {
         color: '#fff',
