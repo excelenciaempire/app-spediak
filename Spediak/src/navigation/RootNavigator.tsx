@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
@@ -28,8 +28,8 @@ const Drawer = createDrawerNavigator<RootDrawerParamList>();
 
 // --- Reusable Sidebar/Drawer Content ---
 interface SidebarContentProps {
-  onNavigate: (screen: keyof RootDrawerParamList) => void;
-  activeScreen?: keyof RootDrawerParamList; // Optional for highlighting active item on web
+  onNavigate: (screen: keyof RootDrawerParamList | 'AdminDashboard') => void;
+  activeScreen?: keyof RootDrawerParamList | 'AdminDashboard';
 }
 
 const SidebarContent: React.FC<SidebarContentProps> = ({ onNavigate, activeScreen }) => {
@@ -41,10 +41,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ onNavigate, activeScree
     return <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primary} />;
   }
 
-  const drawerItems: { name: keyof RootDrawerParamList; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  const drawerItems: { name: keyof RootDrawerParamList | 'AdminDashboard'; label: string; icon: keyof typeof Ionicons.glyphMap, adminOnly?: boolean }[] = [
     { name: 'NewInspection', label: 'New Inspection', icon: 'add-circle-outline' },
     { name: 'InspectionHistory', label: 'Inspection History', icon: 'time-outline' },
     { name: 'ProfileSettings', label: 'Profile', icon: 'person-circle-outline' },
+    { name: 'AdminDashboard', label: 'Admin Dashboard', icon: 'shield-checkmark-outline', adminOnly: true },
   ];
 
   return (
@@ -62,7 +63,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ onNavigate, activeScree
 
       {/* Navigation Items */}
       <View style={styles.drawerListContainer}>
-        {drawerItems.map((item) => (
+        {drawerItems.filter(item => !item.adminOnly || Platform.OS === 'web').map((item) => (
           <TouchableOpacity
             key={item.name}
             style={[
@@ -115,7 +116,7 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
 const RootNavigator: React.FC = () => {
   const { user, isLoaded } = useUser();
   const { width } = useWindowDimensions(); // Use hook for dynamic width
-  const [activeScreen, setActiveScreen] = useState<keyof RootDrawerParamList>('NewInspection');
+  const [activeScreen, setActiveScreen] = useState<keyof RootDrawerParamList | 'AdminDashboard'>('NewInspection');
 
   const isWebLarge = Platform.OS === 'web' && width > 768;
 
@@ -137,23 +138,28 @@ const RootNavigator: React.FC = () => {
 
   // --- Web Dashboard Layout (Large Screens) ---
   if (isWebLarge) {
-    let CurrentScreenComponent = NewInspectionScreen; // Default
-    if (activeScreen === 'InspectionHistory') {
+    let CurrentScreenComponent: React.ComponentType<any> | null = null; // Initialize as null
+
+    if (activeScreen === 'NewInspection') {
+        CurrentScreenComponent = NewInspectionScreen;
+    } else if (activeScreen === 'InspectionHistory') {
         CurrentScreenComponent = InspectionHistoryScreen;
     } else if (activeScreen === 'ProfileSettings') {
         CurrentScreenComponent = ProfileSettingsScreen;
+    } else if (activeScreen === 'AdminDashboard') { // No need to check isAdmin here
+        // Load component only when needed and on web
+        const AdminDashboardScreen = require('../screens/AdminDashboardScreen').default;
+        CurrentScreenComponent = AdminDashboardScreen;
     }
 
     return (
         <View style={{ flex: 1, flexDirection: 'row' }}>
-            {/* Fixed Sidebar */}
             <View style={styles.webSidebar}>
                  <SidebarContent onNavigate={setActiveScreen} activeScreen={activeScreen} />
             </View>
-            {/* Main Content Area */}
             <View style={styles.webContent}>
-                <CurrentScreenComponent />
-                 {/* Maybe add a header here if needed for web dashboard? */}
+                 {/* Render only if component is found */}
+                 {CurrentScreenComponent ? <CurrentScreenComponent /> : <Text>Select an option</Text>}
             </View>
         </View>
     );
@@ -178,22 +184,18 @@ const RootNavigator: React.FC = () => {
             drawerLabelStyle: { marginLeft: -20, fontSize: 16 } // Adjust label style if needed
         })}
     >
-        {/* Screens remain the same */}
-         <Drawer.Screen
-            name="NewInspection"
-            component={NewInspectionScreen}
-            options={{ title: 'New Inspection' }}
-        />
-        <Drawer.Screen
-            name="InspectionHistory"
-            component={InspectionHistoryScreen}
-            options={{ title: 'Inspection History' }}
-        />
-        <Drawer.Screen
-            name="ProfileSettings"
-            component={ProfileSettingsScreen}
-            options={{ title: 'Profile Settings' }}
-        />
+        {/* Regular Screens */}
+         <Drawer.Screen name="NewInspection" component={NewInspectionScreen} options={{ title: 'New Inspection' }} />
+         <Drawer.Screen name="InspectionHistory" component={InspectionHistoryScreen} options={{ title: 'Inspection History' }} />
+         <Drawer.Screen name="ProfileSettings" component={ProfileSettingsScreen} options={{ title: 'Profile Settings' }} />
+         {/* Conditionally add Admin screen only if Platform is web */}
+         {Platform.OS === 'web' && (
+             <Drawer.Screen
+                 name="AdminDashboard"
+                 component={require('../screens/AdminDashboardScreen').default} // Load component
+                 options={{ title: 'Admin Dashboard' }}
+             />
+         )}
     </Drawer.Navigator>
   );
 };

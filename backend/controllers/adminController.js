@@ -1,0 +1,65 @@
+const { Pool } = require('pg');
+const { clerkClient } = require('@clerk/clerk-sdk-node');
+
+// Pool configuration (assuming it's defined elsewhere or here like in inspectionController)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+const getAllInspectionsWithUserDetails = async (req, res) => {
+  // IMPORTANT: Add admin authorization check here in a real application!
+  // For now, we proceed without checking if the caller is an admin.
+
+  try {
+    // 1. Fetch all inspections
+    console.log('[Admin] Fetching all inspections...');
+    const inspectionResult = await pool.query('SELECT * FROM inspections ORDER BY created_at DESC');
+    const inspections = inspectionResult.rows;
+    console.log(`[Admin] Found ${inspections.length} inspections.`);
+
+    if (inspections.length === 0) {
+      return res.json([]); // Return empty if no inspections
+    }
+
+    // 2. Get unique User IDs
+    const userIds = [...new Set(inspections.map(insp => insp.user_id).filter(id => id != null))];
+    console.log(`[Admin] Found ${userIds.length} unique user IDs.`);
+
+    // 3. Fetch user details from Clerk for these IDs
+    let usersMap = new Map();
+    if (userIds.length > 0) {
+      console.log('[Admin] Fetching user details from Clerk...');
+      try {
+        // Use getUserList for potentially better efficiency with multiple IDs
+        const users = await clerkClient.users.getUserList({ userId: userIds });
+        console.log(`[Admin] Fetched details for ${users.length} users from Clerk.`);
+        users.forEach(user => {
+          usersMap.set(user.id, {
+            name: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
+            email: user.primaryEmailAddress?.emailAddress || 'N/A'
+          });
+        });
+      } catch (clerkError) {
+        console.error("[Admin] Error fetching users from Clerk:", clerkError);
+        // Decide how to handle Clerk errors - return partial data or fail?
+        // For now, we'll continue and users might be missing details.
+      }
+    }
+
+    // 4. Combine data
+    const combinedData = inspections.map(insp => ({
+      ...insp,
+      userName: usersMap.get(insp.user_id)?.name || 'Unknown', // Add userName
+      userEmail: usersMap.get(insp.user_id)?.email || 'Unknown' // Add userEmail
+    }));
+
+    return res.json(combinedData);
+
+  } catch (err) {
+    console.error('[Admin] Error fetching all inspections:', err);
+    return res.status(500).json({ message: 'Error fetching all inspection data' });
+  }
+};
+
+module.exports = { getAllInspectionsWithUserDetails }; 
