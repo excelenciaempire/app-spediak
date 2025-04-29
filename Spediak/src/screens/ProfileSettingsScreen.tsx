@@ -301,13 +301,14 @@ export default function ProfileSettingsScreen() {
                         onChangeText={setLastName}
                     />
 
-                    {/* State Picker (Step 50) */}
+                    {/* State Picker */}
                     <Text style={styles.label}>Inspection State:</Text>
+                    {/* Wrap Picker in the styled View */}
                      <View style={styles.pickerContainer}>
                         <Picker
                             selectedValue={selectedState ?? availableStates[0].value}
                             onValueChange={(itemValue) => setSelectedState(itemValue)}
-                            style={styles.picker}
+                            style={styles.picker} // Use existing picker style
                             itemStyle={styles.pickerItem}
                             prompt="Select Inspection State"
                         >
@@ -440,27 +441,35 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#495057',
         alignSelf: 'flex-start',
-        marginBottom: 5,
-        marginLeft: 5, // Align with input padding
+        marginBottom: 8, // Consistent spacing
+        width: '100%', // Ensure label takes full width
+        paddingLeft: 5, // Slight indent similar to inputs
     },
     pickerContainer: {
         width: '100%',
-        borderColor: '#ced4da',
-        borderWidth: 1,
-        borderRadius: 8,
-        marginBottom: 20,
+        height: 50,
         backgroundColor: '#ffffff',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#ced4da',
+        marginBottom: 20, // Consistent spacing
+        justifyContent: 'center',
     },
     picker: {
         width: '100%',
-         color: '#333',
-         paddingHorizontal: 10,
+        height: '100%',
+        color: '#333',
+        ...(Platform.OS === 'web' && {
+             borderWidth: 0,
+             backgroundColor: 'transparent',
+             appearance: 'none',
+             paddingLeft: 15,
+             fontSize: 16,
+        })
     },
-     pickerItem: {
-        // iOS only: affects the items in the dropdown wheel
-        // height: 120, // Example
-        // fontSize: 18, // Example
-     },
+    pickerItem: {
+        // Optional styling
+    },
     button: {
         flexDirection: 'row',
         alignItems: 'center',

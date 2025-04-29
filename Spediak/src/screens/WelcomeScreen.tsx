@@ -11,7 +11,7 @@ import {
     Platform
 } from 'react-native';
 import { useUser } from '@clerk/clerk-expo';
-import DropDownPicker from 'react-native-dropdown-picker';
+import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, CheckCircle } from 'lucide-react-native';
 import { COLORS } from '../styles/colors'; // Assuming you have a colors file
@@ -215,24 +215,21 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
                  </View>
              </TouchableOpacity>
 
-            {/* State Picker (Moved Down & Using DropDownPicker) */}
+            {/* State Picker */}
             <Text style={styles.label}>Select Inspection State (Required):</Text>
-            <DropDownPicker
-                open={open}
-                value={selectedState} // Use selectedState for value
-                items={items}
-                setOpen={setOpen}
-                setValue={setSelectedState} // Use setSelectedState to update value
-                setItems={setItems}
-                placeholder="Select State..." // Use placeholder prop
-                listMode="MODAL" // Or "SCROLLVIEW" or "FLATLIST"
-                style={styles.dropdown}
-                placeholderStyle={styles.dropdownPlaceholder}
-                dropDownContainerStyle={styles.dropdownContainer}
-                containerStyle={styles.dropdownWrapper} // Added wrapper for potential zIndex issues
-                zIndex={3000} // Necessary for dropdown visibility
-                zIndexInverse={1000}
-            />
+            {/* Wrap Picker in a styled View */}
+            <View style={styles.pickerContainer}>
+                <Picker
+                    selectedValue={selectedState}
+                    onValueChange={(itemValue, itemIndex) => setSelectedState(itemValue)}
+                    style={styles.picker}
+                    itemStyle={styles.pickerItem} // Optional: style for items if needed
+                >
+                    <Picker.Item label="Select State..." value={null} style={styles.pickerPlaceholder} />
+                    <Picker.Item label="North Carolina" value="NC" />
+                    <Picker.Item label="South Carolina" value="SC" />
+                </Picker>
+            </View>
 
              {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -294,29 +291,39 @@ const styles = StyleSheet.create({
     pickerPlaceholder: { ... },
     */
 
-    // --- DropDownPicker Styles ---
-     dropdownWrapper: {
+    // --- New Styles for Picker Container ---
+    pickerContainer: {
+        width: '100%', // Match text input width
+        height: 50, // Match text input height
+        backgroundColor: '#ffffff', // Match text input background
+        borderRadius: 8, // Match text input border radius
+        borderWidth: 1,
+        borderColor: '#ced4da',
+        marginBottom: 30, // Spacing below
+        justifyContent: 'center', // Center picker content vertically
+    },
+    picker: {
         width: '100%',
-        marginBottom: 30,
-     },
-     dropdown: {
-        borderColor: '#ced4da',
-        borderWidth: 1,
-        borderRadius: 8,
-        backgroundColor: '#ffffff',
-        height: 50,
-     },
-     dropdownPlaceholder: {
-        color: "#a0a0a0",
-        paddingLeft: 5, // Align placeholder
-     },
-     dropdownContainer: {
-        borderColor: '#ced4da',
-        borderWidth: 1,
-        borderRadius: 8,
-        backgroundColor: '#ffffff',
-     },
-    // --- End DropDownPicker Styles ---
+        height: '100%',
+        color: '#333', // Text color
+        // Note: Direct styling of Picker appearance (like removing underline) is limited
+        // and platform-dependent. Styling the container is the primary approach.
+        // On web, some default browser styles might still apply.
+        ...(Platform.OS === 'web' && {
+             borderWidth: 0, // Try removing web border
+             backgroundColor: 'transparent', // Try making background transparent
+             appearance: 'none', // Try hiding default dropdown arrow on web
+             paddingLeft: 15, // Indent text like TextInput
+             fontSize: 16,
+        })
+    },
+    pickerPlaceholder: {
+        color: '#a0a0a0',
+    },
+    pickerItem: {
+        // Optional styling for items in the dropdown list if needed
+    },
+    // --- End Picker Container Styles ---
 
     profileImageContainer: {
         marginBottom: 30,
