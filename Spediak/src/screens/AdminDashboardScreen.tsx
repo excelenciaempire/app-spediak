@@ -58,7 +58,7 @@ const AdminDashboardScreen: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, []);
 
     const onRefresh = useCallback(async () => {
         setIsRefreshing(true);
