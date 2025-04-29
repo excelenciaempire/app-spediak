@@ -684,7 +684,8 @@ const styles = StyleSheet.create({
         maxWidth: 500, // Max width for input area
         marginBottom: 15,
         alignItems: 'center',
-        alignSelf: 'center', // Added to center the container
+        alignSelf: 'center',
+        position: 'relative' // Added for absolute positioning of mic
     },
     input: {
         flex: 1,
@@ -692,13 +693,19 @@ const styles = StyleSheet.create({
         borderColor: '#ccc',
         borderRadius: 8,
         padding: 15,
+        paddingRight: 50, // Add padding to make space for the mic
         minHeight: 100,
         fontSize: 16,
-        marginRight: 10,
-        textAlignVertical: 'top', // Align text to top
+        marginRight: 0, // Remove original margin
+        textAlignVertical: 'top',
     },
     micButton: {
-        padding: 10,
+        position: 'absolute', // Position absolutely within the container
+        right: 10, // Position from the right
+        top: '50%', // Attempt to vertically center (might need adjustment)
+        transform: [{ translateY: -12 }], // Adjust based on icon size (assuming 24)
+        padding: 0, // Remove padding if not needed for touch area
+        // Ensure touch area is sufficient if padding is removed
     },
     button: {
         width: '100%',
