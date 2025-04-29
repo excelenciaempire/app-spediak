@@ -30,9 +30,10 @@ const Drawer = createDrawerNavigator<RootDrawerParamList>();
 interface SidebarContentProps {
   onNavigate: (screen: keyof RootDrawerParamList | 'AdminDashboard') => void;
   activeScreen?: keyof RootDrawerParamList | 'AdminDashboard';
+  isAdmin?: boolean;
 }
 
-const SidebarContent: React.FC<SidebarContentProps> = ({ onNavigate, activeScreen }) => {
+const SidebarContent: React.FC<SidebarContentProps> = ({ onNavigate, activeScreen, isAdmin }) => {
   const { signOut } = useAuth();
   const { user, isLoaded } = useUser();
   const userState = user?.unsafeMetadata?.inspectionState as string || 'North Carolina';
@@ -63,7 +64,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({ onNavigate, activeScree
 
       {/* Navigation Items */}
       <View style={styles.drawerListContainer}>
-        {drawerItems.filter(item => !item.adminOnly || Platform.OS === 'web').map((item) => (
+        {drawerItems.filter(item => !item.adminOnly || (Platform.OS === 'web' && isAdmin)).map((item) => (
           <TouchableOpacity
             key={item.name}
             style={[
@@ -118,6 +119,9 @@ const RootNavigator: React.FC = () => {
   const { width } = useWindowDimensions(); // Use hook for dynamic width
   const [activeScreen, setActiveScreen] = useState<keyof RootDrawerParamList | 'AdminDashboard'>('NewInspection');
 
+  // Check for admin role using unsafeMetadata for frontend visibility
+  const isAdmin = useMemo(() => user?.unsafeMetadata?.role === 'admin', [user]);
+
   const isWebLarge = Platform.OS === 'web' && width > 768;
 
   // Loading State
@@ -155,7 +159,7 @@ const RootNavigator: React.FC = () => {
     return (
         <View style={{ flex: 1, flexDirection: 'row' }}>
             <View style={styles.webSidebar}>
-                 <SidebarContent onNavigate={setActiveScreen} activeScreen={activeScreen} />
+                 <SidebarContent onNavigate={setActiveScreen} activeScreen={activeScreen} isAdmin={isAdmin} />
             </View>
             <View style={styles.webContent}>
                  {/* Render only if component is found */}

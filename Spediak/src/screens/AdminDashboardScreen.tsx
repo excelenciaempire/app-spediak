@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, Alert, Image } from 'react-native';
 import axios from 'axios';
 import { useAuth } from '@clerk/clerk-expo';
 import { BASE_URL } from '../config/api';
@@ -68,11 +68,26 @@ const AdminDashboardScreen: React.FC = () => {
 
     const renderInspectionItem = ({ item }: { item: AdminInspectionData }) => (
         <View style={styles.itemContainer}>
-            <Text style={styles.itemUser}>{item.userName} ({item.userEmail})</Text>
-            <Text style={styles.itemDescription}>{item.description}</Text>
-            {/* Optionally display image thumbnail, DDID snippet, etc. */}
-            {/* <Image source={{ uri: item.image_url }} style={styles.itemThumbnail} /> */}
-            <Text style={styles.itemDate}>{new Date(item.created_at).toLocaleString()}</Text>
+            <View style={styles.itemHeader}>
+                <View style={styles.userInfoContainer}>
+                     <Text style={styles.itemUser}>{item.userName}</Text>
+                     <Text style={styles.itemEmail}>{item.userEmail}</Text>
+                </View>
+                <Text style={styles.itemDate}>{new Date(item.created_at).toLocaleString()}</Text>
+            </View>
+            <View style={styles.itemBody}>
+                {item.image_url && (
+                     <Image source={{ uri: item.image_url }} style={styles.itemThumbnail} resizeMode="cover"/>
+                )}
+                <View style={styles.itemDetails}>
+                     <Text style={styles.itemDescriptionLabel}>Description:</Text>
+                     <Text style={styles.itemDescription}>{item.description}</Text>
+                     <Text style={styles.itemDdidLabel}>DDID:</Text>
+                     <Text style={styles.itemDdid} numberOfLines={3} ellipsizeMode="tail">{item.ddid || 'N/A'}</Text>
+                </View>
+            </View>
+            {/* Optionally add state or ID if needed */}
+            {/* <Text style={styles.itemId}>ID: {item.id}</Text> */}
         </View>
     );
 
@@ -89,6 +104,7 @@ const AdminDashboardScreen: React.FC = () => {
                     renderItem={renderInspectionItem}
                     keyExtractor={(item) => item.id}
                     style={styles.list}
+                    contentContainerStyle={{ paddingBottom: 20 }}
                     ListEmptyComponent={<Text style={styles.emptyText}>No inspections found.</Text>}
                     refreshControl={
                         <RefreshControl
@@ -108,12 +124,12 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f0f2f5',
-        padding: 15,
+        padding: 20,
     },
     headerTitle: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
-        marginBottom: 15,
+        marginBottom: 20,
         color: COLORS.primary,
     },
     loader: {
@@ -130,26 +146,76 @@ const styles = StyleSheet.create({
     itemContainer: {
         backgroundColor: '#fff',
         padding: 15,
-        marginBottom: 10,
+        marginBottom: 15,
         borderRadius: 8,
         borderWidth: 1,
         borderColor: '#e0e0e0',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.15,
+        shadowRadius: 2.22,
+        elevation: 3,
+    },
+    itemHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+        alignItems: 'flex-start',
+    },
+    userInfoContainer: {
+        flex: 1,
+        marginRight: 10,
     },
     itemUser: {
-        fontSize: 14,
-        fontWeight: 'bold',
+        fontSize: 15,
+        fontWeight: '600',
         color: COLORS.darkText,
-        marginBottom: 5,
     },
-    itemDescription: {
-        fontSize: 14,
-        color: '#555',
-        marginBottom: 8,
+    itemEmail: {
+        fontSize: 13,
+        color: '#666',
     },
     itemDate: {
         fontSize: 12,
         color: '#888',
         textAlign: 'right',
+        flexShrink: 0,
+    },
+    itemBody: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+    },
+    itemThumbnail: {
+        width: 60,
+        height: 60,
+        borderRadius: 5,
+        marginRight: 15,
+        backgroundColor: '#eee',
+    },
+    itemDetails: {
+        flex: 1,
+    },
+    itemDescriptionLabel: {
+        fontSize: 12,
+        color: '#555',
+        fontWeight: 'bold',
+        marginBottom: 2,
+    },
+    itemDescription: {
+        fontSize: 14,
+        color: '#333',
+        marginBottom: 8,
+    },
+    itemDdidLabel: {
+        fontSize: 12,
+        color: '#555',
+        fontWeight: 'bold',
+        marginBottom: 2,
+    },
+    itemDdid: {
+        fontSize: 13,
+        color: '#444',
+        fontStyle: 'italic',
     },
     emptyText: {
         textAlign: 'center',
@@ -157,14 +223,6 @@ const styles = StyleSheet.create({
         color: '#6c757d',
         fontSize: 16,
     },
-    // Add styles for itemThumbnail if you uncomment the Image
-    // itemThumbnail: {
-    //     width: 50,
-    //     height: 50,
-    //     borderRadius: 5,
-    //     marginTop: 5,
-    //     marginBottom: 5,
-    // },
 });
 
 export default AdminDashboardScreen; 
