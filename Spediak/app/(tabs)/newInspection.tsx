@@ -35,6 +35,7 @@ export default function NewInspectionScreen() {
     const { getToken } = useAuth();
     const { user } = useUser();
     const [userState, setUserState] = useState<string>('NC'); // Default to NC
+    const [isUploading, setIsUploading] = useState<boolean>(false); // Add upload loading state
 
     // --- Fetch user state from Clerk metadata ---
     useEffect(() => {
@@ -135,26 +136,57 @@ export default function NewInspectionScreen() {
         Alert.alert('Error', 'Could not load the image.');
     };
 
-    const saveInspection = async (ddid: string) => {
-        console.log("[saveInspection] Attempting to save inspection with state:", userState);
+    // --- NEW: Function to upload image to backend (which uploads to Cloudinary) ---
+    const uploadImageToCloudinary = async (base64Data: string): Promise<string | null> => {
+        console.log("[uploadImageToCloudinary] Starting upload...");
+        setIsUploading(true);
+        setError(null);
+        try {
+            const token = await getToken();
+            if (!token) throw new Error("Authentication token not found.");
+
+            console.log(`[uploadImageToCloudinary] Calling POST ${BASE_URL}/api/upload-image`);
+            const response = await axios.post(`${BASE_URL}/api/upload-image`, {
+                imageBase64: base64Data, // Send the base64 data
+            }, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (response.data && response.data.imageUrl) {
+                console.log("[uploadImageToCloudinary] Upload successful, URL:", response.data.imageUrl);
+                return response.data.imageUrl; // Return the Cloudinary URL
+            } else {
+                throw new Error("Invalid response from image upload endpoint.");
+            }
+        } catch (err: any) {
+            console.error("[uploadImageToCloudinary] Error:", err);
+            const errorMessage = err.response?.data?.message || err.message || "Failed to upload image";
+            setError(`Image Upload Failed: ${errorMessage}`);
+            Alert.alert("Image Upload Failed", `Could not upload the image to storage: ${errorMessage}`);
+            return null; // Indicate failure
+        } finally {
+            setIsUploading(false);
+            console.log("[uploadImageToCloudinary] Upload process finished.");
+        }
+    };
+    // --- END NEW FUNCTION ---
+
+    // Modify saveInspection to accept Cloudinary URL
+    const saveInspection = async (ddid: string, cloudinaryImageUrl: string | null) => {
+        console.log("[saveInspection] Attempting to save inspection with Cloudinary URL:", cloudinaryImageUrl);
         try {
             const token = await getToken();
             if (!token) throw new Error("User not authenticated");
 
-            // Log the exact data being sent
             const payload = {
-                imageUri,
                 description,
                 ddid,
+                imageUrl: cloudinaryImageUrl, // Use the Cloudinary URL here
                 userState
             };
             console.log(`[saveInspection] Preparing to POST to ${BASE_URL}/api/inspections with payload:`, JSON.stringify(payload));
 
-            // Check if imageUri is valid before sending
-            if (!imageUri || typeof imageUri !== 'string') {
-                console.error("[saveInspection] Invalid imageUri before sending:", imageUri);
-                throw new Error("Invalid image URI detected before save.");
-            }
+            // Removed the imageUri check here as we now use cloudinaryImageUrl
 
             await axios.post(`${BASE_URL}/api/inspections`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -179,62 +211,69 @@ export default function NewInspectionScreen() {
             Alert.alert("Missing Information", "Please upload an image and provide a description.");
             return;
         }
+        // Keep isGenerating for the whole process (upload + DDID + save)
         setIsGenerating(true);
         setShowAnalyzingPopup(true);
         setError(null);
         setGeneratedDdid(null);
+        let cloudinaryUrl: string | null = null; // Variable to hold the result
 
         try {
+            // --- Step 1: Upload Image ---
+            cloudinaryUrl = await uploadImageToCloudinary(imageBase64);
+            if (!cloudinaryUrl) {
+                // Error handling is done within uploadImageToCloudinary, just exit
+                setShowAnalyzingPopup(false); // Hide popup if upload fails
+                setIsGenerating(false);
+                return;
+            }
+
+            // --- Step 2: Generate DDID --- (Now uses original description)
             const token = await getToken();
             if (!token) throw new Error("Authentication token not found.");
-
             console.log(`[handleGenerateDdid] Calling POST ${BASE_URL}/api/generate-ddid`);
-            const response = await axios.post(`${BASE_URL}/api/generate-ddid`, {
+            const ddidResponse = await axios.post(`${BASE_URL}/api/generate-ddid`, {
+                // Send the *original* base64 for analysis, not the Cloudinary URL
                 imageBase64,
                 description,
                 userState,
             }, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            console.log("[handleGenerateDdid] API call successful, response status:", response.status);
+            console.log("[handleGenerateDdid] DDID API call successful, status:", ddidResponse.status);
 
-            if (response.data && response.data.ddid) {
-                const receivedDdid = response.data.ddid;
+            if (ddidResponse.data && ddidResponse.data.ddid) {
+                const receivedDdid = ddidResponse.data.ddid;
                 console.log("[handleGenerateDdid] Valid DDID received:", receivedDdid);
-
-                // Hide analyzing pop-up *before* showing results
                 setShowAnalyzingPopup(false);
-
                 setGeneratedDdid(receivedDdid);
-                setShowDdidModal(true); // Now show the results modal
+                setShowDdidModal(true);
 
-                // Add logging around saveInspection call
-                console.log("[handleGenerateDdid] Attempting to call saveInspection...");
-                try {
-                    await saveInspection(receivedDdid);
-                    console.log("[handleGenerateDdid] saveInspection call completed.");
-                } catch (saveError) {
-                    console.error("[handleGenerateDdid] Error occurred *during* saveInspection call:", saveError);
-                    // Optionally alert user here too, though saveInspection should handle its own alerts
-                }
+                // --- Step 3: Save Inspection (using Cloudinary URL) ---
+                console.log("[handleGenerateDdid] Attempting to call saveInspection with Cloudinary URL...");
+                await saveInspection(receivedDdid, cloudinaryUrl);
+                console.log("[handleGenerateDdid] saveInspection call completed.");
+
             } else {
-                console.error("[handleGenerateDdid] Invalid response structure:", response.data);
-                throw new Error("Invalid response structure from server.");
+                setShowAnalyzingPopup(false);
+                throw new Error("Invalid response structure from DDID server.");
             }
 
         } catch (err: any) {
+            // Ensure error logging is robust
             console.error("[handleGenerateDdid] Error caught:", err);
             if (err.response) {
                 console.error("[handleGenerateDdid] Error response data:", err.response.data);
                 console.error("[handleGenerateDdid] Error response status:", err.response.status);
             }
-            const errorMessage = err.response?.data?.message || err.message || "Failed to generate DDID";
+            const errorMessage = err.response?.data?.message || err.message || "Failed to generate DDID or save inspection";
             setError(errorMessage);
-            Alert.alert("Generation Failed", `An error occurred: ${errorMessage}`);
+            Alert.alert("Operation Failed", `An error occurred: ${errorMessage}`);
+            setShowAnalyzingPopup(false); // Ensure popup hides on error
         } finally {
             console.log("[handleGenerateDdid] Setting isGenerating = false in finally block");
             setIsGenerating(false);
-            // Ensure analyzing pop-up is hidden in finally block as well (safety net)
+            // Ensure analyzing pop-up is hidden just in case
             setShowAnalyzingPopup(false);
         }
     };
@@ -453,21 +492,11 @@ export default function NewInspectionScreen() {
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.button, styles.generateButton, (!imageUri || !description || isGenerating) && styles.buttonDisabled]}
+                    style={[styles.button, styles.generateButton, (!imageUri || !description || isGenerating || isUploading) && styles.buttonDisabled]}
                     onPress={handleGenerateDdid}
-                    disabled={!imageUri || !description || isGenerating}
+                    disabled={!imageUri || !description || isGenerating || isUploading}
                 >
-                    {isGenerating ? (
-                        <>
-                            <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
-                            <Text style={styles.buttonText}>Generate Statement</Text>
-                        </>
-                    ) : (
-                        <>
-                            <BotMessageSquare size={20} color="#ffffff" style={styles.buttonIcon} />
-                            <Text style={styles.buttonText}>Generate Statement</Text>
-                        </>
-                    )}
+                    {isUploading ? 'Uploading...' : isGenerating ? 'Analyzing...' : 'Generate Statement'}
                 </TouchableOpacity>
 
                 <TouchableOpacity
