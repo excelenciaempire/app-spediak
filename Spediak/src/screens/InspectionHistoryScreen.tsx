@@ -18,7 +18,7 @@ import { BASE_URL } from '../config/api'; // Import centralized BASE_URL
 // Placeholder for Inspection type - define based on your actual API response
 interface Inspection {
     id: string; // Or number, depending on your backend
-    imageUrl: string; // Or uri
+    image_url: string; // Or uri
     description: string;
     created_at: string; // Corrected property name
     ddid: string; // Full DDID text
@@ -186,21 +186,22 @@ export default function InspectionHistoryScreen() {
             dateTimeString = `${formattedDate} at ${formattedTime}`;
         }
 
-        // Log the imageUrl for debugging
-        console.log(`[renderItem] Rendering item ID: ${item.id}, Image URL: ${item.imageUrl}`);
+        // Use correct property name for logging
+        console.log(`[renderItem] Rendering item ID: ${item.id}, Image URL: ${item.image_url}`);
 
         return (
              // Step 41: Wrap item in TouchableOpacity for detail view
             <TouchableOpacity
                 style={styles.itemContainer}
                 onPress={() => {
-                    console.log("Item tapped:", item.id, "Image URL:", item.imageUrl); // Log URL
-                    setSelectedInspectionDdid(item.ddid); // Set DDID for modal
-                    setSelectedImageUrl(item.imageUrl); // Set Image URL for modal
-                    setShowDetailModal(true); // Show modal
+                    // Use correct property name for logging and setting state
+                    console.log("Item tapped:", item.id, "Image URL:", item.image_url);
+                    setSelectedInspectionDdid(item.ddid);
+                    setSelectedImageUrl(item.image_url); // <--- Corrected: Use underscore
+                    setShowDetailModal(true);
                 }}
                 >
-                <Image source={{ uri: item.imageUrl || 'https://via.placeholder.com/60' }} style={styles.itemThumbnail} />
+                <Image source={{ uri: item.image_url || 'https://via.placeholder.com/60' }} style={styles.itemThumbnail} />
                 <View style={styles.itemTextContainer}>
                     <Text style={styles.itemDescription} numberOfLines={2} ellipsizeMode="tail">{item.description}</Text>
                     <Text style={styles.itemDate}>{dateTimeString}</Text>
