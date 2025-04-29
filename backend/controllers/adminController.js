@@ -62,4 +62,31 @@ const getAllInspectionsWithUserDetails = async (req, res) => {
   }
 };
 
-module.exports = { getAllInspectionsWithUserDetails }; 
+const getAllUsers = async (req, res) => {
+  // Assumes requireAdmin middleware has already run
+  console.log('[AdminUsers] Attempting to fetch all users from Clerk...');
+  try {
+    // Fetch all users. You might want pagination for large user bases.
+    // See Clerk Backend SDK docs for pagination options (limit, offset, etc.)
+    const userList = await clerkClient.users.getUserList();
+    
+    console.log(`[AdminUsers] Fetched ${userList.length} users.`);
+
+    // Map to a simpler format for the frontend if desired
+    const formattedUsers = userList.map(user => ({
+      id: user.id,
+      name: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
+      email: user.primaryEmailAddress?.emailAddress || 'N/A',
+      createdAt: user.createdAt
+      // Add other fields as needed (e.g., lastSignInAt)
+    }));
+
+    return res.json(formattedUsers);
+
+  } catch (error) {
+    console.error('[AdminUsers] Error fetching users from Clerk:', error);
+    return res.status(500).json({ message: 'Failed to fetch users', details: error.message });
+  }
+};
+
+module.exports = { getAllInspectionsWithUserDetails, getAllUsers }; 

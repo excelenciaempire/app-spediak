@@ -7,12 +7,13 @@ const { transcribeAudioController } = require('../controllers/transcriptionContr
 const { getInspections, createInspection, deleteInspection } = require('../controllers/inspectionController');
 const { generateDdidController } = require('../controllers/ddidController');
 const { uploadImageController } = require('../controllers/uploadController');
-const { getAllInspectionsWithUserDetails } = require('../controllers/adminController');
+const { getAllInspectionsWithUserDetails, getAllUsers } = require('../controllers/adminController');
 
 router.use(requireAuth);
 
-// --- Admin Route ---
+// --- Admin Routes ---
 router.get('/admin/all-inspections', requireAdmin, getAllInspectionsWithUserDetails);
+router.get('/admin/all-users', requireAdmin, getAllUsers);
 
 // --- Regular User Routes ---
 router.post('/upload-image', uploadImageController);

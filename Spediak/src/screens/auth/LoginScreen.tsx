@@ -27,22 +27,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const onSignInPress = async () => {
     if (!isLoaded) {
       return;
     }
     setLoading(true);
+    setError(null);
     try {
       const completeSignIn = await signIn.create({
         identifier: emailAddress,
         password,
       });
-      // This is an important step, this indicates the user is signed in
       await setActive({ session: completeSignIn.createdSessionId });
-      // Navigation to the main app will happen automatically due to SignedIn/SignedOut in App.tsx
     } catch (err: any) {
-      Alert.alert('Login Error', err.errors ? err.errors[0].message : 'Login failed');
+      console.error("Login Error Raw:", JSON.stringify(err, null, 2));
+      const errorMessage = err.errors?.[0]?.longMessage || err.errors?.[0]?.message || 'Invalid email or password. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -96,6 +98,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotPasswordContainer}>
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
+
+          {error && <Text style={styles.errorText}>{error}</Text>}
 
           <TouchableOpacity style={styles.button} onPress={onSignInPress} disabled={loading}>
             {loading ? (
@@ -207,6 +211,13 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 15,
+    fontSize: 14,
+    paddingHorizontal: 10,
   },
 });
 
