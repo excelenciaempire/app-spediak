@@ -66,21 +66,26 @@ const AdminDashboardScreen: React.FC = () => {
         setIsRefreshing(false);
     }, [fetchData]);
 
-    const renderInspectionItem = ({ item }: { item: AdminInspectionData }) => (
-        <View style={styles.cardContainer}>
-            {item.image_url && (
-                <Image source={{ uri: item.image_url }} style={styles.cardImage} resizeMode="cover"/>
-            )}
-            <View style={styles.cardContent}>
-                <View style={styles.userInfoRow}>
-                    <Text style={styles.cardUserText}>{item.userName}</Text>
-                    <Text style={styles.cardEmailText}>({item.userEmail})</Text>
+    const renderInspectionItem = ({ item, index }: { item: AdminInspectionData; index: number }) => (
+        <View style={[styles.cardContainer, index % 2 !== 0 && styles.cardAlternate]}>
+            <View style={styles.cardTopSection}>
+                {item.image_url ? (
+                    <Image source={{ uri: item.image_url }} style={styles.cardImage} resizeMode="cover"/>
+                ) : (
+                    <View style={styles.cardImagePlaceholder} />
+                )}
+                <View style={styles.cardHeaderInfo}>
+                    <Text style={styles.cardUserText} numberOfLines={1} ellipsizeMode="tail">{item.userName}</Text>
+                    <Text style={styles.cardEmailText} numberOfLines={1} ellipsizeMode="tail">{item.userEmail}</Text>
+                    <Text style={styles.cardDateText}>{new Date(item.created_at).toLocaleString()}</Text>
                 </View>
-                <Text style={styles.cardDateText}>{new Date(item.created_at).toLocaleString()}</Text>
+            </View>
+
+            <View style={styles.cardBottomSection}>
                 <Text style={styles.cardDescriptionLabel}>Description:</Text>
                 <Text style={styles.cardDescriptionText}>{item.description}</Text>
                 <Text style={styles.cardDdidLabel}>DDID:</Text>
-                <Text style={styles.cardDdidText} numberOfLines={2} ellipsizeMode="tail">{item.ddid || 'N/A'}</Text>
+                <Text style={styles.cardDdidText} numberOfLines={3} ellipsizeMode="tail">{item.ddid || 'N/A'}</Text>
             </View>
         </View>
     );
@@ -145,66 +150,85 @@ const styles = StyleSheet.create({
     },
     cardContainer: {
         backgroundColor: '#fff',
-        borderRadius: 10,
-        marginBottom: 20,
+        borderRadius: 8,
+        marginBottom: 18,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.1,
         shadowRadius: 3.84,
-        elevation: 4,
-        overflow: 'hidden',
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    cardAlternate: {
+        backgroundColor: '#fdfdfd',
+    },
+    cardTopSection: {
+        flexDirection: 'row',
+        padding: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+        alignItems: 'flex-start',
     },
     cardImage: {
-        width: '100%',
-        height: 180,
+        width: 65,
+        height: 65,
+        borderRadius: 6,
+        marginRight: 12,
+        backgroundColor: '#e0e0e0',
     },
-    cardContent: {
-        padding: 15,
+    cardImagePlaceholder: {
+        width: 65,
+        height: 65,
+        borderRadius: 6,
+        marginRight: 12,
+        backgroundColor: '#f0f2f5',
     },
-    userInfoRow: {
-        flexDirection: 'row',
-        alignItems: 'baseline',
-        marginBottom: 8,
+    cardHeaderInfo: {
+        flex: 1,
     },
     cardUserText: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '600',
         color: COLORS.darkText,
-        marginRight: 5,
+        marginBottom: 2,
     },
     cardEmailText: {
-        fontSize: 14,
-        color: '#555',
+        fontSize: 13,
+        color: '#666',
+        marginBottom: 4,
     },
     cardDateText: {
-        fontSize: 12,
-        color: '#777',
-        marginBottom: 12,
-        textAlign: 'right',
+        fontSize: 11,
+        color: '#888',
+        marginTop: 2,
+    },
+    cardBottomSection: {
+        padding: 12,
     },
     cardDescriptionLabel: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 'bold',
-        color: '#444',
+        color: '#555',
         marginBottom: 3,
     },
     cardDescriptionText: {
         fontSize: 14,
         color: '#333',
         lineHeight: 20,
-        marginBottom: 12,
+        marginBottom: 10,
     },
     cardDdidLabel: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 'bold',
-        color: '#444',
+        color: '#555',
         marginBottom: 3,
     },
     cardDdidText: {
-        fontSize: 14,
+        fontSize: 13,
         color: '#555',
         fontStyle: 'italic',
-        lineHeight: 19,
+        lineHeight: 18,
     },
 });
 
