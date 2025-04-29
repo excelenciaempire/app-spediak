@@ -475,7 +475,7 @@ export default function NewInspectionScreen() {
                     onPress={resetInspection}
                 >
                     <RefreshCcw size={20} color="#333" style={styles.buttonIcon} />
-                    <Text style={styles.buttonTextSecondary}>Clean Chat</Text>
+                    <Text style={styles.buttonTextSecondary}>New Defect</Text>
                 </TouchableOpacity>
 
                 {error && <Text style={styles.errorText}>{error}</Text>}
