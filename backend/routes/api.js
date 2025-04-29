@@ -1,14 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/clerkAuth');
+const { requireAdmin } = require('../middleware/adminAuth');
 
 const { transcribeAudioController } = require('../controllers/transcriptionController');
 const { getInspections, createInspection, deleteInspection } = require('../controllers/inspectionController');
 const { generateDdidController } = require('../controllers/ddidController');
 const { uploadImageController } = require('../controllers/uploadController');
+const { getAllInspectionsWithUserDetails } = require('../controllers/adminController');
 
 router.use(requireAuth);
 
+// --- Admin Route ---
+router.get('/admin/all-inspections', requireAdmin, getAllInspectionsWithUserDetails);
+
+// --- Regular User Routes ---
 router.post('/upload-image', uploadImageController);
 router.post('/transcribe', transcribeAudioController);
 router.get('/inspections', getInspections);
