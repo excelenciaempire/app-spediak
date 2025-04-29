@@ -14,22 +14,32 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { X, Copy } from 'lucide-react-native';
 import Markdown from 'react-native-markdown-display'; // For rendering bold text etc.
+import { COLORS } from '../styles/colors'; // Import COLORS if needed for styling
 
 interface DdidModalProps {
     visible: boolean;
     onClose: () => void;
     ddidText: string;
-    imageUrl?: string; // Make imageUrl prop optional
+    imageUrl?: string;
+    description?: string;
+    userName?: string;
+    userEmail?: string;
 }
 
 const { width, height } = Dimensions.get('window');
 
-const DdidModal: React.FC<DdidModalProps> = ({ visible, onClose, ddidText, imageUrl }) => {
+const DdidModal: React.FC<DdidModalProps> = ({ 
+    visible, 
+    onClose, 
+    ddidText, 
+    imageUrl, 
+    description,
+    userName,
+    userEmail
+}) => {
 
-    // Add console log here
     console.log(`[DdidModal] Received imageUrl: ${imageUrl}`);
 
-    // Step 32: Copy Logic
     const copyToClipboard = async () => {
         try {
             await Clipboard.setStringAsync(ddidText);
@@ -49,30 +59,34 @@ const DdidModal: React.FC<DdidModalProps> = ({ visible, onClose, ddidText, image
         >
             <View style={styles.centeredView}>
                 <View style={styles.modalView}>
-                    {/* Header with Title and Close Button */}
                     <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>DDID Report</Text>
+                        <View style={styles.headerUserInfo}>
+                           <Text style={styles.headerUserName} numberOfLines={1}>{userName || 'Inspection'} Report</Text>
+                           {userEmail && <Text style={styles.headerUserEmail} numberOfLines={1}>{userEmail}</Text>}
+                        </View>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <X size={24} color="#6c757d" />
                         </TouchableOpacity>
                     </View>
 
-                    <Text style={styles.modalSubtitle}>Defect, Description, Implication, Direction</Text>
-
-                    {/* Conditionally Render Image */}
-                    {imageUrl && (
-                        <Image source={{ uri: imageUrl }} style={styles.modalImage} resizeMode="contain" />
-                    )}
-
-                    {/* Scrollable Content Area */}
                     <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
-                        {/* Step 31: Render DDID Text (using Markdown) */}
-                        <Markdown style={markdownStyles}>
-                            {ddidText || 'No content available.'}
-                         </Markdown>
+                        {imageUrl && (
+                            <Image source={{ uri: imageUrl }} style={styles.modalImage} resizeMode="contain" />
+                        )}
+                        {description && (
+                            <View style={styles.sectionContainer}>
+                                <Text style={styles.sectionTitle}>Inspector Description:</Text>
+                                <Text style={styles.descriptionText}>{description}</Text>
+                            </View>
+                        )}
+                        <View style={styles.sectionContainer}>
+                             <Text style={styles.sectionTitle}>Generated DDID Report:</Text>
+                             <Markdown style={markdownStyles}>
+                                {ddidText || 'No content available.'}
+                             </Markdown>
+                        </View>
                     </ScrollView>
 
-                    {/* Footer with Copy Button */}
                     <View style={styles.modalFooter}>
                          <TouchableOpacity style={styles.copyButton} onPress={copyToClipboard}>
                              <Copy size={18} color="#fff" style={styles.copyIcon} />
@@ -85,7 +99,6 @@ const DdidModal: React.FC<DdidModalProps> = ({ visible, onClose, ddidText, image
     );
 };
 
-// Step 31: Styles
 const styles = StyleSheet.create({
     centeredView: {
         flex: 1,
@@ -99,7 +112,7 @@ const styles = StyleSheet.create({
         margin: 20,
         backgroundColor: 'white',
         borderRadius: 15, // More rounded corners
-        padding: 0, // Remove padding, handle internally
+        padding: 0, // Padding handled internally by sections
         alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: {
@@ -117,43 +130,55 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingTop: 15,
-        paddingBottom: 10,
+        paddingVertical: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
     },
-    modalTitle: {
-        fontSize: 20,
+    headerUserInfo: {
+        flex: 1, // Allow text to take space
+        marginRight: 10,
+    },
+    headerUserName: {
+        fontSize: 18,
         fontWeight: 'bold',
         color: '#333',
     },
+    headerUserEmail: {
+        fontSize: 13,
+        color: '#555',
+    },
     closeButton: {
          padding: 5, // Increase tappable area
-    },
-    modalSubtitle: {
-        fontSize: 13,
-        color: '#6c757d',
-        marginTop: 0,
-        marginBottom: 15,
-        textAlign: 'center',
-        paddingHorizontal: 20,
     },
     scrollView: {
         width: '100%',
     },
     scrollViewContent: {
-         paddingHorizontal: 20,
-         paddingBottom: 20, // Space at the bottom of scroll
+         padding: 20, // Add padding around scroll content
     },
-    modalImage: { // Style for the image inside the modal
-        width: '90%', // Take most of the modal width
-        height: 150, // Fixed height for the image
+    modalImage: { 
+        width: '100%', // Use full width within padding
+        height: 200, // Increase height slightly
         borderRadius: 8,
-        marginBottom: 15, // Space below the image
-        backgroundColor: '#eee', // Placeholder bg
+        marginBottom: 20, // More space
+        backgroundColor: '#eee',
+        alignSelf: 'center',
     },
-    modalText: { // Style for Markdown rendered text (default)
-        marginBottom: 15,
-        fontSize: 16,
-        lineHeight: 24, // Improve readability
+    sectionContainer: {
+        marginBottom: 20,
+    },
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: COLORS.primary,
+        marginBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        paddingBottom: 4,
+    },
+    descriptionText: {
+        fontSize: 15,
+        lineHeight: 22,
         color: '#333',
     },
     modalFooter: {
@@ -185,12 +210,11 @@ const styles = StyleSheet.create({
     }
 });
 
-// Styles for Markdown rendering
 const markdownStyles = StyleSheet.create({
     body: {
-        fontSize: 16,
+        fontSize: 15, // Match descriptionText
         color: '#333',
-        lineHeight: 24,
+        lineHeight: 22,
     },
     heading1: {
         fontSize: 22,
