@@ -615,35 +615,36 @@ export default function NewInspectionScreen() {
 
 // Define web-specific style outside StyleSheet.create
 const webDropZoneStyle: React.CSSProperties = {
-    width: '100%',
+    width: '100%', // Take full width
+    maxWidth: 400, // Max width for the square picker
+    aspectRatio: 1, // Make the drop zone square
     padding: 10,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'transparent',
-    marginBottom: 20, // Match imagePicker margin
+    marginBottom: 20,
+    alignSelf: 'center', // Center the drop zone itself
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8f9fa',
-        paddingHorizontal: Platform.OS === 'web' ? width * 0.15 : 20,
-        paddingVertical: 20,
+        backgroundColor: '#fff',
     },
     contentContainer: {
-        flexGrow: 1,
-        alignItems: 'center',
-        justifyContent: 'flex-start',
+        padding: 20,
+        alignItems: 'center', // Center content horizontally
     },
     userStateText: {
-        fontSize: 14,
-        color: '#6c757d',
+        fontSize: 16,
+        color: '#555',
         marginBottom: 15,
-        textAlign: 'center',
+        alignSelf: 'flex-end', // Position to the right
     },
     imagePicker: {
-        width: '100%', // Occupy full width of parent (dropzone on web)
-        height: 200,
+        width: '100%', // Occupy full width of parent (dropzone or screen padding)
+        // Removed height: 200
+        aspectRatio: 1, // Ensure the picker itself is square
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#f0f2f5',
@@ -652,6 +653,22 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#ddd',
         borderStyle: 'dashed',
+        ...Platform.select({
+             native: {
+                 // For native, explicitly set width relative to screen
+                 width: width * 0.85, // Adjust percentage as needed
+                 alignSelf: 'center', // Center native picker
+             },
+             web: {
+                 // Web uses parent (dropzone) width
+                 maxWidth: '100%', // Ensure it doesn't exceed dropzone
+             }
+         }),
+    },
+    imagePreview: {
+        width: '100%',
+        height: '100%', // Fill the square picker area
+        borderRadius: 8, // Match inner content radius
     },
     imagePlaceholder: {
         justifyContent: 'center',
@@ -660,85 +677,64 @@ const styles = StyleSheet.create({
     imagePlaceholderText: {
         marginTop: 10,
         color: '#6c757d',
-        fontSize: 16,
-    },
-    imagePreview: {
-        width: '100%',
-        height: '100%',
     },
     inputContainer: {
         flexDirection: 'row',
         width: '100%',
-        maxWidth: 500,
-        alignSelf: 'center',
-        alignItems: 'flex-start',
-        marginBottom: 20,
-        position: 'relative',
+        maxWidth: 500, // Max width for input area
+        marginBottom: 15,
+        alignItems: 'center',
     },
     input: {
         flex: 1,
-        height: 100,
-        borderColor: '#ced4da',
         borderWidth: 1,
+        borderColor: '#ccc',
         borderRadius: 8,
-        paddingVertical: 10,
-        paddingLeft: 15,
-        paddingRight: 50,
-        textAlignVertical: 'top',
-        backgroundColor: '#ffffff',
+        padding: 15,
+        minHeight: 100,
         fontSize: 16,
+        marginRight: 10,
+        textAlignVertical: 'top', // Align text to top
     },
     micButton: {
-        position: 'absolute',
-        right: 8,
-        top: 12,
-        padding: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: 40,
-        width: 40,
+        padding: 10,
     },
     button: {
-        flexDirection: 'row',
+        width: '100%',
+        maxWidth: 500, // Max width for buttons
+        paddingVertical: 15,
+        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 15,
-        paddingHorizontal: 25,
-        borderRadius: 10,
-        maxWidth: 500,
-        alignSelf: 'center',
-        width: Platform.OS === 'web' ? '100%' : '80%',
-        marginBottom: 15,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.23,
-        shadowRadius: 2.62,
-        elevation: 4,
+        marginBottom: 10,
+    },
+    buttonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     generateButton: {
         backgroundColor: COLORS.primary,
     },
+    resetButton: {
+        backgroundColor: '#6c757d',
+    },
+    buttonDisabled: {
+        backgroundColor: '#adb5bd',
+    },
+    // Add other styles as needed
     newChatButton: {
         backgroundColor: '#e9ecef',
         borderWidth: 1,
         borderColor: '#ced4da',
     },
-    buttonText: {
-        color: '#ffffff',
-        fontSize: 17,
-        fontWeight: '600',
+    buttonIcon: {
+        marginRight: 8,
     },
     buttonTextSecondary: {
         color: COLORS.darkText,
         fontSize: 17,
         fontWeight: '600',
-    },
-    buttonIcon: {
-        marginRight: 8,
-    },
-    buttonDisabled: {
-        backgroundColor: '#6c757d',
-        opacity: 0.7,
     },
     errorText: {
         color: 'red',
@@ -770,4 +766,5 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
     },
-}); 
+    // ... modal styles might go here if defined inline
+});
