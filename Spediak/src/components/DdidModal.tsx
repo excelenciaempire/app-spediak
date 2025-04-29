@@ -26,6 +26,9 @@ const { width, height } = Dimensions.get('window');
 
 const DdidModal: React.FC<DdidModalProps> = ({ visible, onClose, ddidText, imageUrl }) => {
 
+    // Add console log here
+    console.log(`[DdidModal] Received imageUrl: ${imageUrl}`);
+
     // Step 32: Copy Logic
     const copyToClipboard = async () => {
         try {
