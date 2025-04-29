@@ -127,8 +127,8 @@ const InspectionList: React.FC = () => {
                         )}
                     </View>
                     <View style={styles.inspectionTextContainer}>
-                        <Text style={styles.cardDescriptionLabel}>Description:</Text>
-                        <Text style={styles.cardDescriptionText} numberOfLines={2}>{item.description}</Text>
+                        <Text style={styles.cardDescriptionLabel}>Statement:</Text>
+                        <Text style={styles.cardDescriptionText} numberOfLines={2}>{item.ddid}</Text>
                         <TouchableOpacity
                             style={styles.viewReportButton}
                             onPress={() => {

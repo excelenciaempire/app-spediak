@@ -203,7 +203,7 @@ export default function InspectionHistoryScreen() {
                 >
                 <Image source={{ uri: item.image_url || 'https://via.placeholder.com/60' }} style={styles.itemThumbnail} />
                 <View style={styles.itemTextContainer}>
-                    <Text style={styles.itemDescription} numberOfLines={2} ellipsizeMode="tail">{item.description}</Text>
+                    <Text style={styles.itemDescription} numberOfLines={2} ellipsizeMode="tail">{item.ddid}</Text>
                     <Text style={styles.itemDate}>{dateTimeString}</Text>
                 </View>
                 <TouchableOpacity onPress={() => handleDeleteInspection(item.id)} style={styles.deleteButton}>
