@@ -20,8 +20,8 @@ interface AdminInspectionData {
     created_at: string;
     userName: string;
     userEmail: string;
-    // userState: string | null; // Removed - Not provided by backend yet
-    // userProfilePhoto: string | null; // Removed - Not provided by backend yet
+    userState: string | null; // Added back
+    userProfilePhoto: string | null; // Added back
 }
 
 interface UserData {
@@ -29,8 +29,9 @@ interface UserData {
     name: string;
     email: string;
     createdAt: string | Date;
-    // state: string | null; // Removed - Not provided by backend yet
-    // profilePhoto: string | null; // Removed - Not provided by backend yet
+    state: string | null; // Added back
+    profilePhoto: string | null; // Added back
+    inspectionCount: number; // Added inspection count
 }
 
 // Component for the Inspection List
@@ -95,12 +96,24 @@ const InspectionList: React.FC = () => {
 
     const renderInspectionItem = ({ item, index }: { item: AdminInspectionData; index: number }) => (
         <View style={styles.cardContainer}>
-            {/* Removed User Image Container - No photo available */}
             <View style={styles.cardContent}>
-                {/* Display User Info First */}
                  <View style={styles.cardHeaderInfo}> 
-                     <Text style={styles.cardUserText} numberOfLines={1}>{item.userName || 'Unknown User'}</Text>
-                     <Text style={styles.cardDetailText} numberOfLines={1}>{item.userEmail}</Text> {/* Removed state */}
+                     {/* User Info with Photo */}
+                     <View style={styles.userInfoRow}> 
+                        {item.userProfilePhoto ? (
+                            <Image source={{ uri: item.userProfilePhoto }} style={styles.userImageSmall} />
+                        ) : (
+                             <View style={styles.userImagePlaceholderSmall}>
+                                <UserCircle size={20} color={COLORS.secondary} />
+                             </View>
+                        )}
+                        <View style={styles.userInfoTextContainer}> 
+                            <Text style={styles.cardUserText} numberOfLines={1}>{item.userName || 'Unknown User'}</Text>
+                            <Text style={styles.cardDetailText} numberOfLines={1}>
+                                {item.userEmail} {item.userState ? `(${item.userState})` : ''}
+                            </Text>
+                        </View>
+                     </View>
                     <Text style={styles.cardDateText}>{new Date(item.created_at).toLocaleString()}</Text>
                  </View>
 
@@ -225,11 +238,22 @@ const UserList = () => {
      const renderUserItem = ({ item }: { item: UserData }) => (
          <TouchableOpacity style={styles.userItemContainer} onPress={() => Alert.alert('User Profile', `User ID: ${item.id}`)}>
             <View style={styles.userItemContent}>
-                 {/* Removed User Image Container */}
+                 {/* User Image */}
+                 <View style={styles.userListImageContainer}>
+                    {item.profilePhoto ? (
+                        <Image source={{ uri: item.profilePhoto }} style={styles.userListImage} />
+                    ) : (
+                         <View style={styles.userListImagePlaceholder}>
+                            <UserCircle size={32} color={COLORS.secondary} />
+                         </View>
+                    )}
+                </View>
+                {/* User Info */}
                 <View style={styles.userInfoContainer}>
                     <Text style={styles.userNameText}>{item.name}</Text>
                     <Text style={styles.userEmailText}>{item.email}</Text>
-                    {/* <Text style={styles.userDetailText}>State: {item.state || 'N/A'}</Text> */} {/* Removed state */}
+                    <Text style={styles.userDetailText}>State: {item.state || 'N/A'}</Text>
+                    <Text style={styles.userDetailText}>Statements: {item.inspectionCount}</Text> 
                 </View>
                  <Text style={styles.userDateText}>Joined: {new Date(item.createdAt).toLocaleDateString()}</Text>
              </View>
@@ -367,27 +391,49 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 12, // Use slightly more padding
     },
-    cardHeaderInfo: { // Container for User/Email/Date at top
-        marginBottom: 10, // Space below header info
-         borderBottomWidth: 1,
-         borderBottomColor: '#eee',
-         paddingBottom: 8,
+    cardHeaderInfo: { 
+        marginBottom: 10, 
+        paddingBottom: 8,
+    },
+    userInfoRow: { // New style for horizontal layout of image and text
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4, // Space below user info row before date
+    },
+    userImageSmall: {
+        width: 30, // Smaller image for inspection card header
+        height: 30,
+        borderRadius: 15,
+        marginRight: 8,
+    },
+    userImagePlaceholderSmall: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: '#f0f2f5',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    userInfoTextContainer: { // Container for Name/Email/State text
+        flex: 1, // Allow text to take available space
     },
     cardUserText: {
         fontSize: 14,
         fontWeight: '600',
         color: COLORS.darkText,
-        marginBottom: 1,
+        // Remove margin bottom as spacing is handled by userInfoTextContainer
     },
-    cardDetailText: { // For email
+    cardDetailText: { // For email & state
         fontSize: 12,
         color: '#555',
-        marginBottom: 4,
+        // Remove margin bottom
     },
     cardDateText: {
         fontSize: 10,
         color: '#777',
-        marginTop: 2, // Add a bit of space above date
+        marginTop: 0, // Reset margin top
+        textAlign: 'right', // Align date to the right below user info
     },
     inspectionDetailsContainer: {
         flexDirection: 'row',
@@ -415,10 +461,6 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
     },
-    placeholderText: {
-        fontSize: 12,
-        color: '#aaa',
-    },
     cardDescriptionLabel: {
         fontSize: 12,
         fontWeight: 'bold',
@@ -430,6 +472,10 @@ const styles = StyleSheet.create({
         color: '#444',
         lineHeight: 18,
         marginBottom: 5,
+    },
+    placeholderText: {
+        fontSize: 12,
+        color: '#aaa',
     },
     viewReportButton: {
         flexDirection: 'row',
@@ -454,16 +500,32 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         borderWidth: 1,
         borderColor: '#e8e8e8',
-        paddingHorizontal: 15,
-        paddingVertical: 10,
+        paddingHorizontal: 15, 
+        paddingVertical: 10, 
     },
     userItemContent: {
         flexDirection: 'row',
         alignItems: 'center',
     },
+    userListImageContainer: {
+        marginRight: 15, 
+    },
+    userListImage: {
+        width: 50,
+        height: 50,
+        borderRadius: 25, 
+    },
+    userListImagePlaceholder: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: '#f0f2f5',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     userInfoContainer: {
-        flex: 1, // Takes up space
-         marginRight: 10, // Ensure space before date
+        flex: 1, 
+        marginRight: 10,
     },
     userNameText: {
         fontSize: 16,
@@ -474,13 +536,18 @@ const styles = StyleSheet.create({
     userEmailText: {
         fontSize: 14,
         color: '#555',
-        marginBottom: 3,
+        marginBottom: 3, 
+    },
+    userDetailText: { // Style for State and Inspection Count
+        fontSize: 13,
+        color: '#777',
+        marginTop: 2, // Add small space between detail lines
     },
     userDateText: {
         fontSize: 12,
         color: '#999',
         textAlign: 'right',
-        marginLeft: 0, // No longer need left margin
+        marginLeft: 0, 
     },
 });
 
