@@ -203,6 +203,10 @@ export default function InspectionHistoryScreen() {
                 >
                 <Image source={{ uri: item.image_url || 'https://via.placeholder.com/60' }} style={styles.itemThumbnail} />
                 <View style={styles.itemTextContainer}>
+                    {/* Show Description first, then DDID */}
+                    <Text style={styles.itemDescriptionLabel}>Description:</Text>
+                    <Text style={styles.itemDescription} numberOfLines={1} ellipsizeMode="tail">{item.description}</Text>
+                    <Text style={styles.itemDescriptionLabel}>Statement:</Text>
                     <Text style={styles.itemDescription} numberOfLines={2} ellipsizeMode="tail">{item.ddid}</Text>
                     <Text style={styles.itemDate}>{dateTimeString}</Text>
                 </View>
@@ -333,11 +337,18 @@ const styles = StyleSheet.create({
         backgroundColor: '#e0e0e0', // Placeholder bg color
     },
     itemTextContainer: {
-        flex: 1, // Allow text to take available space
+        flex: 1, 
         justifyContent: 'center',
     },
+    itemDescriptionLabel: { // Style for labels
+        fontSize: 11,
+        color: '#888',
+        fontWeight: '600',
+        marginTop: 4,
+        marginBottom: 1,
+    },
     itemDescription: {
-        fontSize: 15,
+        fontSize: 14, // Adjusted size slightly
         color: '#333',
         marginBottom: 4, // Space between description and date
     },

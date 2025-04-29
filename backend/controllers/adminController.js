@@ -33,11 +33,10 @@ const getAllInspectionsWithUserDetails = async (req, res) => {
       try {
         const users = await clerkClient.users.getUserList({ userId: userIds, limit: userIds.length });
         console.log(`[AdminInspections] Fetched details for ${users.length} users from Clerk.`);
-        console.log('[AdminInspections] Raw Clerk User Object (first user):', JSON.stringify(users[0], null, 2)); // Log raw user object
         users.forEach(user => {
           usersMap.set(user.id, {
             name: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
-            email: user.primaryEmailAddress?.emailAddress || 'N/A',
+            email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || 'N/A',
             profilePhoto: user.imageUrl,
             state: user.unsafeMetadata?.inspectionState || null
           });
@@ -76,7 +75,6 @@ const getAllUsers = async (req, res) => {
     // 1. Fetch all users from Clerk
     const userList = await clerkClient.users.getUserList({ limit: 500 });
     console.log(`[AdminUsers] Fetched ${userList.length} users from Clerk.`);
-    console.log('[AdminUsers] Raw Clerk User Object (first user):', JSON.stringify(userList[0], null, 2)); // Log raw user object
 
     // 2. Fetch inspection counts from database
     let inspectionCountsMap = new Map(); // Initialize the map here, outside the inner try/catch
@@ -96,7 +94,7 @@ const getAllUsers = async (req, res) => {
     const formattedUsers = userList.map(user => ({
       id: user.id,
       name: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
-      email: user.primaryEmailAddress?.emailAddress || 'N/A',
+      email: user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || 'N/A',
       createdAt: user.createdAt,
       profilePhoto: user.imageUrl || null, 
       state: user.unsafeMetadata?.inspectionState || null,

@@ -127,6 +127,8 @@ const InspectionList: React.FC = () => {
                         )}
                     </View>
                     <View style={styles.inspectionTextContainer}>
+                        <Text style={styles.cardDescriptionLabel}>Description:</Text>
+                        <Text style={styles.cardDescriptionText} numberOfLines={1}>{item.description}</Text>
                         <Text style={styles.cardDescriptionLabel}>Statement:</Text>
                         <Text style={styles.cardDescriptionText} numberOfLines={2}>{item.ddid}</Text>
                         <TouchableOpacity
@@ -463,17 +465,18 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
     },
-    cardDescriptionLabel: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#555',
-        marginBottom: 3,
+    cardDescriptionLabel: { 
+        fontSize: 11, // Make labels smaller
+        fontWeight: '600', // Bolder labels
+        color: '#666', // Darker gray label
+        marginBottom: 2, // Less space below label
+        marginTop: 5, // Add space above labels (except first)
     },
-    cardDescriptionText: {
+    cardDescriptionText: { 
         fontSize: 13,
         color: '#444',
         lineHeight: 18,
-        marginBottom: 5,
+        marginBottom: 5, // Space below text block
     },
     placeholderText: {
         fontSize: 12,
