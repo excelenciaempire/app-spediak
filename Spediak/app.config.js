@@ -31,7 +31,7 @@ module.exports = {
       "apiUrl": process.env.EXPO_PUBLIC_API_URL,
       "eas": {
         "projectId": "your-project-id"
-      }
+    }
     },
     "plugins": [
       "expo-router"

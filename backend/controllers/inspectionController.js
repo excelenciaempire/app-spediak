@@ -29,23 +29,26 @@ const getInspections = async (req, res) => {
 };
 
 const createInspection = async (req, res) => {
-  const userId = req.auth.userId; // Obtener userId del middleware
+  const userId = req.auth.userId;
+  // Try to get name/email from auth context provided by middleware
+  const userName = req.auth.userName || null; // Adjust property name if different
+  const userEmail = req.auth.userEmail || null; // Adjust property name if different
+
   if (!userId) {
      return res.status(401).json({ message: 'Not authorized' });
   }
-  // const userId = 'temp_user_id'; // Temporal hasta tener autenticación
 
-  const { description, ddid, imageUrl } = req.body; // Añadido imageUrl
+  const { description, ddid, imageUrl } = req.body;
 
-  // Validación simple, puedes añadir más según necesites
-  if (!description) { // DDID podría ser opcional o generado después?
+  if (!description) {
     return res.status(400).json({ message: 'Missing description' });
   }
 
   try {
+    // Add user_name and user_email to the INSERT statement and parameters
     const result = await pool.query(
-      'INSERT INTO inspections (user_id, description, ddid, image_url) VALUES ($1, $2, $3, $4) RETURNING *',
-      [userId, description, ddid, imageUrl] // Usar el userId real
+      'INSERT INTO inspections (user_id, description, ddid, image_url, user_name, user_email) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [userId, description, ddid, imageUrl, userName, userEmail] // Add new parameters
     );
     return res.status(201).json(result.rows[0]);
   } catch (err) {

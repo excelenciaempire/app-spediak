@@ -254,7 +254,7 @@ export default function NewInspectionScreen() {
                 // --- Step 3: Save Inspection (using Cloudinary URL) ---
                 console.log("[handleGenerateDdid] Attempting to call saveInspection with Cloudinary URL...");
                 await saveInspection(receivedDdid, cloudinaryUrl);
-                console.log("[handleGenerateDdid] saveInspection call completed.");
+                    console.log("[handleGenerateDdid] saveInspection call completed.");
 
             } else {
                 setShowAnalyzingPopup(false);

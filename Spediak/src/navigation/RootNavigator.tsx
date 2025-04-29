@@ -187,7 +187,7 @@ const RootNavigator: React.FC = () => {
             drawerInactiveTintColor: COLORS.darkText,
             drawerLabelStyle: { marginLeft: -20, fontSize: 16 } // Adjust label style if needed
         })}
-    >
+        >
         {/* Regular Screens */}
          <Drawer.Screen name="NewInspection" component={NewInspectionScreen} options={{ title: 'New Inspection' }} />
          <Drawer.Screen name="InspectionHistory" component={InspectionHistoryScreen} options={{ title: 'Inspection History' }} />

@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     },
     pickerPlaceholder: {
         color: '#a0a0a0',
-    },
+     },
     pickerItem: {
         // Optional styling for items in the dropdown list if needed
     },
