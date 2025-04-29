@@ -20,7 +20,7 @@ interface Inspection {
     id: string; // Or number, depending on your backend
     imageUrl: string; // Or uri
     description: string;
-    createdAt: string; // Or Date object
+    created_at: string; // Corrected property name
     ddid: string; // Full DDID text
     // Add other relevant fields like userState, etc.
 }
@@ -63,7 +63,7 @@ export default function InspectionHistoryScreen() {
             // --- Placeholder Data (Remove/Comment out) ---
             // await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
             // const placeholderInspections: Inspection[] = [
-            //     { id: '1', imageUrl: '...', description: '...', createdAt: '...', ddid: '...' },
+            //     { id: '1', imageUrl: '...', description: '...', created_at: '...', ddid: '...' },
             // ];
             // setInspections(placeholderInspections);
             // --- End Placeholder ---
@@ -167,7 +167,7 @@ export default function InspectionHistoryScreen() {
         const lowerCaseQuery = searchQuery.toLowerCase();
         return inspections.filter(inspection =>
             inspection.description.toLowerCase().includes(lowerCaseQuery) ||
-            (inspection.createdAt && new Date(inspection.createdAt).toLocaleDateString().includes(lowerCaseQuery)) ||
+            (inspection.created_at && new Date(inspection.created_at).toLocaleDateString().includes(lowerCaseQuery)) ||
             (inspection.ddid && inspection.ddid.toLowerCase().includes(lowerCaseQuery)) // Optionally search DDID text too
         );
     }, [inspections, searchQuery]);
@@ -175,8 +175,8 @@ export default function InspectionHistoryScreen() {
     // Step 39 & 41: FlatList Render Item (Completed Design)
     const renderItem = ({ item }: { item: Inspection }) => {
         let dateTimeString = 'N/A';
-        if (item.createdAt) {
-            const dateObj = new Date(item.createdAt);
+        if (item.created_at) {
+            const dateObj = new Date(item.created_at);
             const formattedDate = dateObj.toLocaleDateString(undefined, {
                 year: 'numeric', month: 'short', day: 'numeric'
             });
