@@ -20,6 +20,7 @@ import { BASE_URL } from '../../src/config/api'; // Import centralized BASE_URL
 const { width } = Dimensions.get('window'); // Get screen width
 // const imageSize = width * 0.9; // Keep this if still needed for native
 
+// Revert to standard function declaration
 export default function NewInspectionScreen() {
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -620,18 +621,18 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 12,
+        paddingVertical: 15,
         paddingHorizontal: 25,
-        borderRadius: 25,
+        borderRadius: 10,
         maxWidth: 500,
         alignSelf: 'center',
         width: Platform.OS === 'web' ? '100%' : '80%',
         marginBottom: 15,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 1.41,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.23,
+        shadowRadius: 2.62,
+        elevation: 4,
     },
     generateButton: {
         backgroundColor: '#007bff',
@@ -643,13 +644,13 @@ const styles = StyleSheet.create({
     },
     buttonText: {
         color: '#ffffff',
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 17,
+        fontWeight: '600',
     },
     buttonTextSecondary: {
         color: '#333',
-        fontSize: 16,
-        fontWeight: 'bold',
+        fontSize: 17,
+        fontWeight: '600',
     },
     buttonIcon: {
         marginRight: 8,
