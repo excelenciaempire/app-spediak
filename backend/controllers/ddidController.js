@@ -12,22 +12,27 @@ const generateDdidController = async (req, res) => {
   }
 
   const prompt = `
-You are an AI assistant that generates standardized DDID reports (Describe, Determine, Implication, Direct) for home inspections. Your job is to write a clear, professional and concise DDID in this format:
+You are an AI assistant creating inspection report statements based on the Describe, Determine, Implication, Direct (DDID) model.
 
-**Describe**: What is seen in the image + text description.  
-**Determine**: What is the issue.  
-**Implication**: Why it matters.  
-**Direct**: What should be done.
+Format:
+Describe: [Directly state the observation, e.g., "Water intrusion observed..."]
+Determine: [Identify the specific issue.]
+Implication: [Explain the potential consequences neutrally and informatively, without causing undue alarm.]
+Direct: [Recommend the next step, e.g., "Further evaluation by a qualified professional..." or "Monitor the area..."]
 
-Use the following data:
+Instructions:
+- Analyze the inspector's notes and the provided image.
+- Combine the visual information and text description for the "Describe" section.
+- Ensure the tone is precise, objective, and informative, avoiding alarming language.
+- **Do not** reference building codes, safety standards, regulations, or citations.
+- **Do not** use any Markdown formatting (like ** for bold). Write the entire response in plain text.
 
-- Inspector location (state): ${userState}
-- Inspector notes: ${description}
-- Image (visual content): <image attached via base64>
+Inspector Data:
+- Location (State): ${userState}
+- Notes: ${description}
+- Image: <attached>
 
-Provide the response in Markdown format without headings.
-
-Now write the DDID report.
+Generate the DDID statement now.
 `;
 
   try {

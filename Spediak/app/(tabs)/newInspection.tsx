@@ -118,9 +118,9 @@ export default function NewInspectionScreen() {
         }
     };
 
-    // Helper function to handle result from either picker
-    const handleImageResult = (result: ImagePicker.ImagePickerResult) => {
-         if (!result.canceled && result.assets && result.assets.length > 0) {
+    // Helper function to handle result from either picker or drag/drop
+    const handleImageResult = (result: ImagePicker.ImagePickerResult | { assets: { uri: string; base64?: string }[] }) => {
+         if (!('canceled' in result && result.canceled) && result.assets && result.assets.length > 0) {
             const asset = result.assets[0];
             setImageUri(asset.uri);
             setImageBase64(asset.base64 ?? null);
@@ -281,30 +281,35 @@ export default function NewInspectionScreen() {
     };
 
     async function startRecording() {
+        console.log('[Audio] Requesting permissions...');
         try {
-            console.log('Requesting permissions..');
-            await Audio.requestPermissionsAsync();
+            const permissionResponse = await Audio.requestPermissionsAsync();
+            if (!permissionResponse.granted) {
+                console.error('[Audio] Microphone permission not granted.');
+                Alert.alert("Permission Required", "Microphone access is needed to record audio descriptions.");
+                return; // Exit if permission denied
+            }
+            console.log('[Audio] Permissions granted.');
+
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: true,
-                // interruptionModeIOS: InterruptionModeIOS.DoNotMix,
                 playsInSilentModeIOS: true,
+                // interruptionModeIOS: InterruptionModeIOS.DoNotMix, // Consider defaults unless issues arise
                 // interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-                // shouldDuckAndroid: true,
-                // staysActiveInBackground: true,
-                // playThroughEarpieceAndroid: true,
             });
+            console.log('[Audio] Audio mode set.');
 
-            console.log('Starting recording..');
+            console.log('[Audio] Starting recording instance creation...');
             const { recording } = await Audio.Recording.createAsync(
                Audio.RecordingOptionsPresets.HIGH_QUALITY
             );
             setRecording(recording);
             setIsRecording(true);
-            console.log('Recording started');
+            console.log('[Audio] Recording started successfully.');
         } catch (err) {
-            console.error('Failed to start recording', err);
-            Alert.alert("Recording Error", "Could not start recording.");
-            // Reset states if recording fails to start
+            console.error('[Audio] Failed to start recording', err);
+            const message = err instanceof Error ? err.message : String(err);
+            Alert.alert("Recording Error", `Could not start recording. Please ensure your microphone is connected and permissions are granted. Error: ${message}`);
             setIsRecording(false);
             setRecording(null);
         }
@@ -312,93 +317,106 @@ export default function NewInspectionScreen() {
 
     async function stopRecording() {
         if (!recording) {
-            console.warn('stopRecording called but no recording object exists.');
+            console.warn('[Audio] stopRecording called but no recording object exists.');
             return;
         }
+        console.log('[Audio] Attempting to stop recording...');
+        setIsRecording(false); // Optimistically set recording state off
 
-        console.log('Stopping recording..');
-        setIsRecording(false);
-        await recording.stopAndUnloadAsync();
-        // await Audio.setAudioModeAsync({
-        //     allowsRecordingIOS: false, // Set back to default if needed
-        // });
-        const uri = recording.getURI();
-        setRecording(null); // Clear recording object
-        console.log('Recording stopped and stored at', uri);
+        try {
+             await recording.stopAndUnloadAsync();
+             console.log('[Audio] Recording stopped and unloaded.');
+             const uri = recording.getURI();
+             setRecording(null); // Clear recording object AFTER getting URI
+             console.log('[Audio] Recording URI:', uri);
 
-        if (uri) {
-            transcribeAudio(uri);
+             if (uri) {
+                transcribeAudio(uri);
+            } else {
+                 console.error('[Audio] Failed to get recording URI after stopping.');
+                 Alert.alert("Recording Error", "Could not retrieve the recorded audio file path.");
+            }
+        } catch(err) {
+             console.error('[Audio] Error stopping recording or getting URI:', err);
+             const message = err instanceof Error ? err.message : String(err);
+             Alert.alert("Recording Error", `Failed to stop recording properly. Error: ${message}`);
+             setRecording(null); // Ensure recording object is cleared on error too
         }
     }
 
     async function transcribeAudio(audioUri: string) {
         setIsTranscribing(true);
-        setError(null); // Clear previous errors
-        console.log('Attempting to transcribe audio:', audioUri);
+        setError(null);
+        console.log('[Transcribe] Starting transcription for URI:', audioUri);
+        let audioBase64: string | null = null;
 
         try {
-            const token = await getToken();
-            if (!token) throw new Error("Authentication token not found.");
-
-            let audioBase64: string | null = null;
-
+            // --- Get Base64 Data ---
+            console.log('[Transcribe] Attempting to read audio file to Base64...');
             if (Platform.OS === 'web') {
-                // Web: Fetch the blob URI and convert to base64
-                console.log("Transcribing audio on web, fetching blob data...");
+                console.log("[Transcribe] Reading audio on web...");
                 try {
                     const response = await fetch(audioUri);
+                    if (!response.ok) throw new Error(`Failed to fetch blob: ${response.statusText}`);
                     const blob = await response.blob();
                     audioBase64 = await new Promise((resolve, reject) => {
                         const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result as string);
-                        reader.onerror = reject;
+                        reader.onloadend = () => resolve((reader.result as string).split(',')[1]); // Extract Base64
+                        reader.onerror = (error) => reject(new Error(`FileReader error: ${error}`));
                         reader.readAsDataURL(blob);
                     });
-                    // Remove the "data:*/*;base64," prefix
-                    if (audioBase64) {
-                        audioBase64 = audioBase64.split(',')[1];
-                    }
+                     console.log("[Transcribe] Web audio read successfully.");
                 } catch (fetchError) {
-                    console.error("Failed to fetch or convert blob:", fetchError);
-                    throw new Error("Could not process audio data for web.");
+                    console.error("[Transcribe] Web fetch/read error:", fetchError);
+                    const message = fetchError instanceof Error ? fetchError.message : String(fetchError);
+                    throw new Error(`Could not process web audio: ${message}`);
                 }
-
             } else {
-                 // Native: Use FileSystem API
-                 console.log("Transcribing audio on native, reading file...");
-                 audioBase64 = await FileSystem.readAsStringAsync(audioUri, {
-                    encoding: FileSystem.EncodingType.Base64,
-                });
+                console.log("[Transcribe] Reading audio on native...");
+                try {
+                     audioBase64 = await FileSystem.readAsStringAsync(audioUri, {
+                        encoding: FileSystem.EncodingType.Base64,
+                    });
+                     console.log("[Transcribe] Native audio read successfully.");
+                 } catch (readError) {
+                    console.error("[Transcribe] Native file read error:", readError);
+                    const message = readError instanceof Error ? readError.message : String(readError);
+                    throw new Error(`Could not read native audio file: ${message}`);
+                 }
             }
 
             if (!audioBase64) {
-                 throw new Error("Failed to get Base64 audio data.");
+                 throw new Error("Failed to get Base64 audio data after read attempts.");
             }
+             console.log('[Transcribe] Audio Base64 obtained successfully.');
 
-            console.log('Sending audio to backend for transcription...');
-            // Replace with your actual backend endpoint if different
+            // --- Transcribe API Call ---
+            const token = await getToken();
+            if (!token) throw new Error("Authentication token not found.");
+            console.log('[Transcribe] Sending audio to backend...');
             const response = await axios.post(`${BASE_URL}/api/transcribe`, {
                 audioBase64: audioBase64,
             }, {
                 headers: { Authorization: `Bearer ${token}` },
             });
+            console.log('[Transcribe] Backend response status:', response.status);
 
             if (response.data && response.data.transcript) {
-                console.log('Transcription received:', response.data.transcript);
-                // Append transcript to existing description or replace?
-                // Let's append for now, user can edit.
+                console.log('[Transcribe] Transcription received:', response.data.transcript);
                 setDescription(prev => prev ? `${prev} ${response.data.transcript}` : response.data.transcript);
             } else {
-                throw new Error("Invalid response structure from transcription server.");
+                 console.error('[Transcribe] Invalid response from backend:', response.data);
+                throw new Error("Invalid response from transcription server.");
             }
 
         } catch (err: any) {
-            console.error('Transcription failed:', err);
-            const errorMessage = err.response?.data?.message || err.message || 'Failed to transcribe audio';
+            console.error('[Transcribe] Full transcription process failed:', err);
+            const errorMessage = err.response?.data?.message || (err instanceof Error ? err.message : String(err)) || 'Failed to transcribe audio';
             setError(errorMessage);
-            Alert.alert("Transcription Failed", errorMessage);
+            Alert.alert("Transcription Failed", `Could not transcribe audio. Please try again. Error: ${errorMessage}`);
         } finally {
             setIsTranscribing(false);
+            console.log('[Transcribe] Transcription process finished.');
         }
     }
 
@@ -444,6 +462,46 @@ export default function NewInspectionScreen() {
         };
     }, [recording]);
 
+    // --- Web Drag and Drop Handlers ---
+    const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault(); // Necessary to allow dropping
+        event.stopPropagation();
+    };
+
+    const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        console.log('File dropped!');
+
+        if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+            const file = event.dataTransfer.files[0];
+            console.log('Dropped file:', file.name, file.type);
+
+            if (file.type.startsWith('image/')) {
+                try {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const uri = reader.result as string; // data: URL
+                        const base64 = uri.split(',')[1]; // Extract base64 part
+                        handleImageResult({ assets: [{ uri, base64 }] });
+                    };
+                    reader.onerror = (error) => {
+                        console.error("Error reading dropped file:", error);
+                        setError('Failed to read dropped image.');
+                        Alert.alert('Error', 'Could not read the dropped image.');
+                    };
+                    reader.readAsDataURL(file);
+                } catch (error) {
+                    handleImageError(error);
+                }
+            } else {
+                Alert.alert('Invalid File Type', 'Please drop an image file.');
+            }
+            event.dataTransfer.clearData();
+        }
+    };
+    // --- End Web Drag and Drop Handlers ---
+
     return (
         <ScrollView
             style={styles.container}
@@ -458,16 +516,36 @@ export default function NewInspectionScreen() {
             >
                 <Text style={styles.userStateText}>State: {userState}</Text>
 
-                <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-                    {imageUri ? (
-                        <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-                    ) : (
-                        <View style={styles.imagePlaceholder}>
-                            <ImagePlus size={50} color="#6c757d" />
-                            <Text style={styles.imagePlaceholderText}>Tap to select image</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
+                {Platform.OS === 'web' ? (
+                    // Use an HTML div for web drag-and-drop events
+                    <div
+                        onDragOver={handleDragOver as any} // Cast type for web-only props
+                        onDrop={handleDrop as any}       // Cast type for web-only props
+                        style={webDropZoneStyle} // Use web-specific style object
+                    >
+                        <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                            {imageUri ? (
+                                <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+                            ) : (
+                                <View style={styles.imagePlaceholder}>
+                                    <ImagePlus size={50} color="#6c757d" />
+                                    <Text style={styles.imagePlaceholderText}>Tap or drop image here</Text> {/* Updated text */}
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    </div>
+                 ) : (
+                    <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                        {imageUri ? (
+                            <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+                        ) : (
+                            <View style={styles.imagePlaceholder}>
+                                <ImagePlus size={50} color="#6c757d" />
+                                <Text style={styles.imagePlaceholderText}>Tap to select image</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                 )}
 
                 <View style={styles.inputContainer}>
                     <TextInput
@@ -535,6 +613,16 @@ export default function NewInspectionScreen() {
     );
 }
 
+// Define web-specific style outside StyleSheet.create
+const webDropZoneStyle: React.CSSProperties = {
+    width: '100%',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    marginBottom: 20, // Match imagePicker margin
+};
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -554,26 +642,16 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     imagePicker: {
-        backgroundColor: '#e9ecef',
+        width: '100%', // Occupy full width of parent (dropzone on web)
+        height: 200,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: '#f0f2f5',
+        borderRadius: 10,
         marginBottom: 20,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#ced4da',
-        overflow: 'hidden',
-        alignSelf: 'center',
-        ...Platform.select({
-            web: {
-                width: '100%',
-                maxWidth: 500,
-                aspectRatio: 1,
-            },
-            default: {
-                width: width * 0.9,
-                height: width * 0.9,
-            },
-        }),
+        borderWidth: 2,
+        borderColor: '#ddd',
+        borderStyle: 'dashed',
     },
     imagePlaceholder: {
         justifyContent: 'center',

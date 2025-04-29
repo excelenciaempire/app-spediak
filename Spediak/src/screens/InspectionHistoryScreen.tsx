@@ -208,7 +208,7 @@ export default function InspectionHistoryScreen() {
                     }}
                 >
                     <Eye size={16} color={COLORS.primary} />
-                    <Text style={styles.viewReportButtonText}>View Report</Text>
+                    <Text style={styles.viewReportButtonText}>View Statement</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleDeleteInspection(item.id)} style={styles.deleteButton}>
                     <Trash2 size={20} color="#dc3545" />

@@ -90,7 +90,7 @@ const DdidModal: React.FC<DdidModalProps> = ({
                     <View style={styles.modalFooter}>
                          <TouchableOpacity style={styles.copyButton} onPress={copyToClipboard}>
                              <Copy size={18} color="#fff" style={styles.copyIcon} />
-                             <Text style={styles.copyButtonText}>Copy Report</Text>
+                             <Text style={styles.copyButtonText}>Copy Statement</Text>
                          </TouchableOpacity>
                     </View>
                 </View>
