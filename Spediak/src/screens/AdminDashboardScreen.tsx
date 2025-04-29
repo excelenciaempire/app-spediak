@@ -67,27 +67,21 @@ const AdminDashboardScreen: React.FC = () => {
     }, [fetchData]);
 
     const renderInspectionItem = ({ item }: { item: AdminInspectionData }) => (
-        <View style={styles.itemContainer}>
-            <View style={styles.itemHeader}>
-                <View style={styles.userInfoContainer}>
-                     <Text style={styles.itemUser}>{item.userName}</Text>
-                     <Text style={styles.itemEmail}>{item.userEmail}</Text>
+        <View style={styles.cardContainer}>
+            {item.image_url && (
+                <Image source={{ uri: item.image_url }} style={styles.cardImage} resizeMode="cover"/>
+            )}
+            <View style={styles.cardContent}>
+                <View style={styles.userInfoRow}>
+                    <Text style={styles.cardUserText}>{item.userName}</Text>
+                    <Text style={styles.cardEmailText}>({item.userEmail})</Text>
                 </View>
-                <Text style={styles.itemDate}>{new Date(item.created_at).toLocaleString()}</Text>
+                <Text style={styles.cardDateText}>{new Date(item.created_at).toLocaleString()}</Text>
+                <Text style={styles.cardDescriptionLabel}>Description:</Text>
+                <Text style={styles.cardDescriptionText}>{item.description}</Text>
+                <Text style={styles.cardDdidLabel}>DDID:</Text>
+                <Text style={styles.cardDdidText} numberOfLines={2} ellipsizeMode="tail">{item.ddid || 'N/A'}</Text>
             </View>
-            <View style={styles.itemBody}>
-                {item.image_url && (
-                     <Image source={{ uri: item.image_url }} style={styles.itemThumbnail} resizeMode="cover"/>
-                )}
-                <View style={styles.itemDetails}>
-                     <Text style={styles.itemDescriptionLabel}>Description:</Text>
-                     <Text style={styles.itemDescription}>{item.description}</Text>
-                     <Text style={styles.itemDdidLabel}>DDID:</Text>
-                     <Text style={styles.itemDdid} numberOfLines={3} ellipsizeMode="tail">{item.ddid || 'N/A'}</Text>
-                </View>
-            </View>
-            {/* Optionally add state or ID if needed */}
-            {/* <Text style={styles.itemId}>ID: {item.id}</Text> */}
         </View>
     );
 
@@ -143,85 +137,74 @@ const styles = StyleSheet.create({
     list: {
         flex: 1,
     },
-    itemContainer: {
-        backgroundColor: '#fff',
-        padding: 15,
-        marginBottom: 15,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.15,
-        shadowRadius: 2.22,
-        elevation: 3,
-    },
-    itemHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 10,
-        alignItems: 'flex-start',
-    },
-    userInfoContainer: {
-        flex: 1,
-        marginRight: 10,
-    },
-    itemUser: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: COLORS.darkText,
-    },
-    itemEmail: {
-        fontSize: 13,
-        color: '#666',
-    },
-    itemDate: {
-        fontSize: 12,
-        color: '#888',
-        textAlign: 'right',
-        flexShrink: 0,
-    },
-    itemBody: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-    },
-    itemThumbnail: {
-        width: 60,
-        height: 60,
-        borderRadius: 5,
-        marginRight: 15,
-        backgroundColor: '#eee',
-    },
-    itemDetails: {
-        flex: 1,
-    },
-    itemDescriptionLabel: {
-        fontSize: 12,
-        color: '#555',
-        fontWeight: 'bold',
-        marginBottom: 2,
-    },
-    itemDescription: {
-        fontSize: 14,
-        color: '#333',
-        marginBottom: 8,
-    },
-    itemDdidLabel: {
-        fontSize: 12,
-        color: '#555',
-        fontWeight: 'bold',
-        marginBottom: 2,
-    },
-    itemDdid: {
-        fontSize: 13,
-        color: '#444',
-        fontStyle: 'italic',
-    },
     emptyText: {
         textAlign: 'center',
         marginTop: 50,
         color: '#6c757d',
         fontSize: 16,
+    },
+    cardContainer: {
+        backgroundColor: '#fff',
+        borderRadius: 10,
+        marginBottom: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3.84,
+        elevation: 4,
+        overflow: 'hidden',
+    },
+    cardImage: {
+        width: '100%',
+        height: 180,
+    },
+    cardContent: {
+        padding: 15,
+    },
+    userInfoRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        marginBottom: 8,
+    },
+    cardUserText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.darkText,
+        marginRight: 5,
+    },
+    cardEmailText: {
+        fontSize: 14,
+        color: '#555',
+    },
+    cardDateText: {
+        fontSize: 12,
+        color: '#777',
+        marginBottom: 12,
+        textAlign: 'right',
+    },
+    cardDescriptionLabel: {
+        fontSize: 13,
+        fontWeight: 'bold',
+        color: '#444',
+        marginBottom: 3,
+    },
+    cardDescriptionText: {
+        fontSize: 14,
+        color: '#333',
+        lineHeight: 20,
+        marginBottom: 12,
+    },
+    cardDdidLabel: {
+        fontSize: 13,
+        fontWeight: 'bold',
+        color: '#444',
+        marginBottom: 3,
+    },
+    cardDdidText: {
+        fontSize: 14,
+        color: '#555',
+        fontStyle: 'italic',
+        lineHeight: 19,
     },
 });
 
