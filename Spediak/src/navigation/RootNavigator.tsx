@@ -188,14 +188,6 @@ const RootNavigator: React.FC = () => {
          <Drawer.Screen name="NewInspection" component={NewInspectionScreen} options={{ title: 'New Inspection' }} />
          <Drawer.Screen name="InspectionHistory" component={InspectionHistoryScreen} options={{ title: 'Inspection History' }} />
          <Drawer.Screen name="ProfileSettings" component={ProfileSettingsScreen} options={{ title: 'Profile Settings' }} />
-         {/* Conditionally add Admin screen only if Platform is web */}
-         {Platform.OS === 'web' && (
-             <Drawer.Screen
-                 name="AdminDashboard"
-                 component={require('../screens/AdminDashboardScreen').default} // Load component
-                 options={{ title: 'Admin Dashboard' }}
-             />
-         )}
     </Drawer.Navigator>
   );
 };
