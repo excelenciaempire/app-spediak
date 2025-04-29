@@ -8,6 +8,7 @@ import DdidModal from '../../src/components/DdidModal';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { BASE_URL } from '../../src/config/api'; // Import centralized BASE_URL
+import { COLORS } from '../../src/styles/colors'; // Corrected import path
 
 // --- Define Base URL (Platform Specific) ---
 // const YOUR_COMPUTER_IP_ADDRESS = '<YOUR-COMPUTER-IP-ADDRESS>'; // Removed
@@ -497,14 +498,16 @@ export default function NewInspectionScreen() {
                     onPress={handleGenerateDdid}
                     disabled={!imageUri || !description || isGenerating || isUploading}
                 >
-                    {isUploading ? 'Uploading...' : isGenerating ? 'Analyzing...' : 'Generate Statement'}
+                    <Text style={styles.buttonText}>
+                         {isUploading ? 'Uploading...' : isGenerating ? 'Analyzing...' : 'Generate Statement'}
+                    </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     style={[styles.button, styles.newChatButton]}
                     onPress={resetInspection}
                 >
-                    <RefreshCcw size={20} color="#333" style={styles.buttonIcon} />
+                    <RefreshCcw size={20} color={COLORS.darkText} style={styles.buttonIcon} />
                     <Text style={styles.buttonTextSecondary}>New Defect</Text>
                 </TouchableOpacity>
 
@@ -635,12 +638,12 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     generateButton: {
-        backgroundColor: '#007bff',
+        backgroundColor: COLORS.primary,
     },
     newChatButton: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: '#e9ecef',
         borderWidth: 1,
-        borderColor: '#ccc'
+        borderColor: '#ced4da',
     },
     buttonText: {
         color: '#ffffff',
@@ -648,7 +651,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     buttonTextSecondary: {
-        color: '#333',
+        color: COLORS.darkText,
         fontSize: 17,
         fontWeight: '600',
     },
