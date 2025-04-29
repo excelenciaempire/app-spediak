@@ -235,30 +235,33 @@ const UserList = () => {
         setIsRefreshing(false);
     }, [fetchUsers]);
 
-     const renderUserItem = ({ item }: { item: UserData }) => (
-         <TouchableOpacity style={styles.userItemContainer} onPress={() => Alert.alert('User Profile', `User ID: ${item.id}`)}>
-            <View style={styles.userItemContent}>
-                 {/* User Image */}
-                 <View style={styles.userListImageContainer}>
-                    {item.profilePhoto ? (
-                        <Image source={{ uri: item.profilePhoto }} style={styles.userListImage} />
-                    ) : (
-                         <View style={styles.userListImagePlaceholder}>
-                            <UserCircle size={32} color={COLORS.secondary} />
-                         </View>
-                    )}
-                </View>
-                {/* User Info */}
-                <View style={styles.userInfoContainer}>
-                    <Text style={styles.userNameText}>{item.name}</Text>
-                    <Text style={styles.userEmailText}>{item.email}</Text>
-                    <Text style={styles.userDetailText}>State: {item.state || 'N/A'}</Text>
-                    <Text style={styles.userDetailText}>Statements: {item.inspectionCount}</Text> 
-                </View>
-                 <Text style={styles.userDateText}>Joined: {new Date(item.createdAt).toLocaleDateString()}</Text>
-             </View>
-         </TouchableOpacity>
-    );
+     const renderUserItem = ({ item }: { item: UserData }) => {
+        console.log('[AdminUsers Tab] Rendering user item:', JSON.stringify(item, null, 2)); // Log the item data
+        return (
+            <TouchableOpacity style={styles.userItemContainer} onPress={() => Alert.alert('User Profile', `User ID: ${item.id}`)}>
+                <View style={styles.userItemContent}>
+                     {/* User Image */}
+                     <View style={styles.userListImageContainer}>
+                        {item.profilePhoto ? (
+                            <Image source={{ uri: item.profilePhoto }} style={styles.userListImage} />
+                        ) : (
+                             <View style={styles.userListImagePlaceholder}>
+                                <UserCircle size={32} color={COLORS.secondary} />
+                             </View>
+                        )}
+                    </View>
+                    {/* User Info */}
+                    <View style={styles.userInfoContainer}>
+                        <Text style={styles.userNameText}>{item.name}</Text>
+                        <Text style={styles.userEmailText}>{item.email}</Text>
+                        <Text style={styles.userDetailText}>State: {item.state || 'N/A'}</Text>
+                        <Text style={styles.userDetailText}>Statements: {item.inspectionCount}</Text> 
+                    </View>
+                     <Text style={styles.userDateText}>Joined: {new Date(item.createdAt).toLocaleDateString()}</Text>
+                 </View>
+             </TouchableOpacity>
+        );
+    };
 
     if (isLoading && !isRefreshing) return <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />;
     if (error) return <Text style={styles.errorText}>{error}</Text>;
