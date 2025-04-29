@@ -236,7 +236,6 @@ const UserList = () => {
     }, [fetchUsers]);
 
      const renderUserItem = ({ item }: { item: UserData }) => {
-        console.log('[AdminUsers Tab] Rendering user item:', JSON.stringify(item, null, 2)); // Log the item data
         return (
             <TouchableOpacity style={styles.userItemContainer} onPress={() => Alert.alert('User Profile', `User ID: ${item.id}`)}>
                 <View style={styles.userItemContent}>

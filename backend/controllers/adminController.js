@@ -37,8 +37,8 @@ const getAllInspectionsWithUserDetails = async (req, res) => {
           usersMap.set(user.id, {
             name: user.fullName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
             email: user.primaryEmailAddress?.emailAddress || 'N/A',
-            profilePhoto: user.imageUrl, // Added profile photo URL
-            state: user.publicMetadata?.state || null // Added state from public metadata
+            profilePhoto: user.imageUrl,
+            state: user.unsafeMetadata?.inspectionState || null
           });
         });
       } catch (clerkError) {
@@ -97,8 +97,8 @@ const getAllUsers = async (req, res) => {
       email: user.primaryEmailAddress?.emailAddress || 'N/A',
       createdAt: user.createdAt,
       profilePhoto: user.imageUrl || null, 
-      state: user.publicMetadata?.state || null, 
-      inspectionCount: inspectionCountsMap.get(user.id) || 0 // Now safe to call .get()
+      state: user.unsafeMetadata?.inspectionState || null,
+      inspectionCount: inspectionCountsMap.get(user.id) || 0
     }));
 
     return res.json(formattedUsers);
