@@ -28,7 +28,7 @@ interface UserData {
 }
 
 // Componente para la Lista de Inspecciones
-const InspectionList: React.FC = () => {
+const InspectionList = () => {
     const [inspections, setInspections] = useState<AdminInspectionData[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -94,7 +94,7 @@ const InspectionList: React.FC = () => {
         <FlatList
             data={inspections}
             renderItem={renderInspectionItem}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item: AdminInspectionData) => item.id}
             style={styles.list}
             contentContainerStyle={{ padding: 15, paddingBottom: 20 }}
             ListEmptyComponent={<Text style={styles.emptyText}>No inspections found.</Text>}
@@ -106,7 +106,7 @@ const InspectionList: React.FC = () => {
 };
 
 // Componente para la Lista de Usuarios
-const UserList: React.FC = () => {
+const UserList = () => {
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -157,7 +157,7 @@ const UserList: React.FC = () => {
          <FlatList
             data={users}
             renderItem={renderUserItem}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item: UserData) => item.id}
             style={styles.list}
             contentContainerStyle={{ padding: 15, paddingBottom: 20 }}
             ListHeaderComponent={<Text style={styles.totalCountText}>Total Users: {users.length}</Text>}
@@ -172,7 +172,7 @@ const UserList: React.FC = () => {
 // Navegador de Pestañas Principal del Dashboard
 const Tab = createMaterialTopTabNavigator();
 
-const AdminDashboardScreen: React.FC = () => {
+const AdminDashboardScreen = () => {
     return (
         <SafeAreaView style={styles.safeAreaContainer}>
              <Text style={styles.headerTitle}>Admin Dashboard</Text>

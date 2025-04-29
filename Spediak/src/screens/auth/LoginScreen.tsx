@@ -20,7 +20,7 @@ import { AuthStackParamList } from '../../navigation/AuthNavigator';
 
 type LoginScreenProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+const LoginScreen = ({ navigation }: LoginScreenProps) => {
   const { signIn, setActive, isLoaded } = useSignIn();
 
   const [emailAddress, setEmailAddress] = useState('');
@@ -76,7 +76,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               value={emailAddress}
               autoCapitalize="none"
               keyboardType="email-address"
-              onChangeText={(email) => setEmailAddress(email)}
+              onChangeText={(email: string) => setEmailAddress(email)}
             />
           </View>
 
@@ -88,7 +88,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               placeholderTextColor={COLORS.darkText}
               value={password}
               secureTextEntry={!passwordVisible}
-              onChangeText={(password) => setPassword(password)}
+              onChangeText={(password: string) => setPassword(password)}
             />
             <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIconContainer}>
               <Ionicons name={passwordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.darkText} />
