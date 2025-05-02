@@ -3,8 +3,9 @@ const router = express.Router();
 const { requireAuth, isAdmin } = require('../middleware/authMiddleware');
 const { requireAdmin } = require('../middleware/adminAuth');
 
-const { transcribeAudioController } = require('../controllers/transcriptionController');
-const { getInspections, createInspection, deleteInspection, saveInspectionController, getInspectionsController, updateInspectionController } = require('../controllers/inspectionController');
+// const { transcribeAudioController } = require('../controllers/transcriptionController'); // Old import
+const transcribeAudioController = require('../controllers/transcriptionController'); // New import style
+const { getInspections, createInspection, deleteInspection, /* saveInspectionController, getInspectionsController, */ updateInspectionController } = require('../controllers/inspectionController');
 const { generateDdidController, analyzeDefectController } = require('../controllers/ddidController');
 const { uploadImageController } = require('../controllers/uploadController');
 const { logStatementEditController } = require('../controllers/loggingController');

@@ -36,4 +36,4 @@ const transcribeAudioController = async (req, res) => {
   }
 };
 
-module.exports = { transcribeAudioController };
+module.exports = transcribeAudioController;
