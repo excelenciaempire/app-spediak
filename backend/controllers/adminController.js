@@ -1,6 +1,15 @@
 const { Pool } = require('pg');
 const { clerkClient } = require('@clerk/clerk-sdk-node');
-const cloudinary = require('../config/cloudinary'); // Assuming cloudinary config exists
+const cloudinary = require('cloudinary').v2; // Require the SDK directly
+
+// Configure Cloudinary directly using environment variables
+// Ensure these vars are set in Render Env Vars
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true
+});
 
 // Pool configuration (assuming it's defined elsewhere or here like in inspectionController)
 const pool = new Pool({
