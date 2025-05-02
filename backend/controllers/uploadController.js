@@ -42,4 +42,4 @@ const uploadImageController = async (req, res) => {
   }
 };
 
-module.exports = { uploadImageController }; 
+module.exports = uploadImageController; 

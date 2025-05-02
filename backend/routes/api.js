@@ -7,7 +7,8 @@ const { requireAdmin } = require('../middleware/adminAuth');
 const transcribeAudioController = require('../controllers/transcriptionController'); // New import style
 const { getInspections, createInspection, deleteInspection, /* saveInspectionController, getInspectionsController, */ updateInspectionController } = require('../controllers/inspectionController');
 const { generateDdidController, analyzeDefectController } = require('../controllers/ddidController');
-const { uploadImageController } = require('../controllers/uploadController');
+// const { uploadImageController } = require('../controllers/uploadController'); // Old import
+const uploadImageController = require('../controllers/uploadController'); // New import style
 const { logStatementEditController } = require('../controllers/loggingController');
 const { getAllInspectionsWithUserDetails, getAllUsers, uploadLogo } = require('../controllers/adminController');
 
