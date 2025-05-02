@@ -32,6 +32,4 @@ const logStatementEditController = async (req, res) => {
     }
 };
 
-module.exports = {
-    logStatementEditController,
-}; 
+module.exports = logStatementEditController; 

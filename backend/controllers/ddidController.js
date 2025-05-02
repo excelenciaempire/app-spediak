@@ -171,4 +171,7 @@ Generate the DDID statement now.
     }
 };
 
-module.exports = { analyzeDefectController, generateDdidController };
+module.exports = {
+    analyzeDefectController,
+    generateDdidController
+};

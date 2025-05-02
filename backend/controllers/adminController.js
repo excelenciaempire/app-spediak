@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
 const { clerkClient } = require('@clerk/clerk-sdk-node');
+const cloudinary = require('../config/cloudinary'); // Assuming cloudinary config exists
 
 // Pool configuration (assuming it's defined elsewhere or here like in inspectionController)
 const pool = new Pool({
@@ -8,15 +9,19 @@ const pool = new Pool({
 });
 
 const getAllInspectionsWithUserDetails = async (req, res) => {
-  // IMPORTANT: Add admin authorization check here in a real application!
-  // For now, we proceed without checking if the caller is an admin.
+  const page = parseInt(req.query.page) || 1; // Default to page 1
+  const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
+  const offset = (page - 1) * limit;
 
   try {
-    // 1. Fetch all inspections
-    console.log('[AdminInspections] Fetching all inspections...');
-    const inspectionResult = await pool.query('SELECT * FROM inspections ORDER BY created_at DESC');
+    // Get total count first
+    const totalResult = await pool.query('SELECT COUNT(*) FROM inspections');
+    const totalCount = parseInt(totalResult.rows[0].count, 10);
+
+    // Fetch paginated inspections
+    const inspectionQuery = 'SELECT * FROM inspections ORDER BY created_at DESC LIMIT $1 OFFSET $2';
+    const inspectionResult = await pool.query(inspectionQuery, [limit, offset]);
     const inspections = inspectionResult.rows;
-    console.log(`[AdminInspections] Found ${inspections.length} inspections.`);
 
     if (inspections.length === 0) {
       return res.json([]); // Return empty if no inspections
@@ -60,31 +65,47 @@ const getAllInspectionsWithUserDetails = async (req, res) => {
       };
     });
 
-    return res.json(combinedData);
+    // Return paginated data and total count
+    return res.json({
+        data: combinedData,
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
+        totalCount: totalCount
+    });
 
   } catch (err) {
-    console.error('[AdminInspections] Error fetching all inspections:', err);
-    return res.status(500).json({ message: 'Error fetching all inspection data' });
+    console.error('[AdminInspections] Error fetching paginated inspections:', err);
+    return res.status(500).json({ message: 'Error fetching paginated inspection data' });
   }
 };
 
 const getAllUsers = async (req, res) => {
-  // Assumes requireAdmin middleware has already run
-  console.log('[AdminUsers] Attempting to fetch all users from Clerk...');
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const offset = (page - 1) * limit;
+
   try {
-    // 1. Fetch all users from Clerk
-    const userList = await clerkClient.users.getUserList({ limit: 500 });
-    console.log(`[AdminUsers] Fetched ${userList.length} users from Clerk.`);
+    // Get total user count from Clerk
+    const totalCount = await clerkClient.users.getCount();
+
+    // Fetch paginated users from Clerk
+    const userList = await clerkClient.users.getUserList({ limit, offset, orderBy: '-created_at' });
 
     // 2. Fetch inspection counts from database
     let inspectionCountsMap = new Map(); // Initialize the map here, outside the inner try/catch
     try {
       console.log('[AdminUsers] Fetching inspection counts...');
-      const countResult = await pool.query('SELECT user_id, COUNT(*) AS inspection_count FROM inspections WHERE user_id IS NOT NULL GROUP BY user_id');
-      countResult.rows.forEach(row => {
-        inspectionCountsMap.set(row.user_id, parseInt(row.inspection_count, 10));
-      });
-      console.log(`[AdminUsers] Fetched counts for ${inspectionCountsMap.size} users.`);
+      const userIdsOnPage = userList.map(u => u.id);
+      if (userIdsOnPage.length > 0) {
+        const countResult = await pool.query(
+          'SELECT user_id, COUNT(*) AS inspection_count FROM inspections WHERE user_id = ANY($1::text[]) GROUP BY user_id',
+          [userIdsOnPage]
+        );
+        countResult.rows.forEach(row => {
+          inspectionCountsMap.set(row.user_id, parseInt(row.inspection_count, 10));
+        });
+        console.log(`[AdminUsers] Fetched counts for ${inspectionCountsMap.size} users.`);
+      }
     } catch (dbError) {
       console.error('[AdminUsers] Error fetching inspection counts:', dbError);
       // inspectionCountsMap will remain empty if DB query fails, which is handled below
@@ -101,12 +122,52 @@ const getAllUsers = async (req, res) => {
       inspectionCount: inspectionCountsMap.get(user.id) || 0
     }));
 
-    return res.json(formattedUsers);
+    // Return paginated data and total count
+    return res.json({
+        data: formattedUsers,
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
+        totalCount: totalCount
+    });
 
   } catch (error) {
-    console.error('[AdminUsers] Error fetching users from Clerk:', error);
-    return res.status(500).json({ message: 'Failed to fetch users', details: error.message });
+    console.error('[AdminUsers] Error fetching paginated users:', error);
+    return res.status(500).json({ message: 'Failed to fetch paginated users', details: error.message });
   }
 };
 
-module.exports = { getAllInspectionsWithUserDetails, getAllUsers }; 
+// Controller to handle logo upload by an admin
+const uploadLogo = async (req, res) => {
+    const { imageBase64 } = req.body;
+    // Admin check middleware should have already run
+    const adminUserId = req.auth.userId; // Get admin user ID for logging/tagging
+
+    if (!imageBase64) {
+        return res.status(400).json({ message: 'Missing image data.' });
+    }
+
+    console.log(`[AdminController] Admin ${adminUserId} attempting to upload logo...`);
+
+    try {
+        // Upload image to Cloudinary in a specific folder
+        const result = await cloudinary.uploader.upload(
+            `data:image/jpeg;base64,${imageBase64}`,
+            {
+                folder: 'company_logos', // Specify a folder for logos
+                // You might want specific upload presets or transformations for logos
+                // upload_preset: 'your_logo_preset',
+                 tags: ['logo', `admin_id_${adminUserId}`], // Add relevant tags
+                 // Consider adding public_id based on user/org if needed for predictability
+            }
+        );
+
+        console.log(`[AdminController] Logo uploaded successfully by ${adminUserId}. URL: ${result.secure_url}`);
+        res.json({ imageUrl: result.secure_url });
+
+    } catch (error) {
+        console.error(`[AdminController] Error uploading logo for admin ${adminUserId}:`, error);
+        res.status(500).json({ message: error.message || 'Failed to upload logo to Cloudinary.' });
+    }
+};
+
+module.exports = { getAllInspectionsWithUserDetails, getAllUsers, uploadLogo }; 

@@ -6,18 +6,18 @@ const { requireAdmin } = require('../middleware/adminAuth');
 // const { transcribeAudioController } = require('../controllers/transcriptionController'); // Old import
 const transcribeAudioController = require('../controllers/transcriptionController'); // New import style
 const { getInspections, createInspection, deleteInspection, /* saveInspectionController, getInspectionsController, */ updateInspectionController } = require('../controllers/inspectionController');
-const { generateDdidController, analyzeDefectController } = require('../controllers/ddidController');
+const ddidController = require('../controllers/ddidController'); // Changed import style
 // const { uploadImageController } = require('../controllers/uploadController'); // Old import
 const uploadImageController = require('../controllers/uploadController'); // New import style
-const { logStatementEditController } = require('../controllers/loggingController');
-const { getAllInspectionsWithUserDetails, getAllUsers, uploadLogo } = require('../controllers/adminController');
+const logStatementEditController = require('../controllers/loggingController'); // Changed import style
+const adminController = require('../controllers/adminController'); // Changed import style
 
 router.use(requireAuth);
 
 // --- Admin Routes ---
-router.get('/admin/all-inspections', requireAuth, isAdmin, getAllInspectionsWithUserDetails);
-router.get('/admin/all-users', requireAuth, isAdmin, getAllUsers);
-router.post('/admin/upload-logo', requireAuth, isAdmin, uploadLogo);
+router.get('/admin/all-inspections', requireAuth, isAdmin, adminController.getAllInspectionsWithUserDetails);
+router.get('/admin/all-users', requireAuth, isAdmin, adminController.getAllUsers);
+router.post('/admin/upload-logo', requireAuth, isAdmin, adminController.uploadLogo);
 
 // --- Regular User Routes ---
 router.post('/upload-image', uploadImageController);
@@ -27,8 +27,8 @@ router.delete('/inspections/:id', deleteInspection);
 router.put('/inspections/:id', updateInspectionController);
 
 // Defect Analysis & DDID Generation
-router.post('/analyze-defect', analyzeDefectController);
-router.post('/generate-ddid', generateDdidController);
+router.post('/analyze-defect', ddidController.analyzeDefectController);
+router.post('/generate-ddid', ddidController.generateDdidController);
 
 // Logging Edits for Training
 router.post('/log-statement-edit', logStatementEditController);
