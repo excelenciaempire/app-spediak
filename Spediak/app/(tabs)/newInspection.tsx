@@ -34,8 +34,8 @@ export default function NewInspectionScreen() {
     const [error, setError] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
     const [isGeneratingFinal, setIsGeneratingFinal] = useState<boolean>(false);
-    const [analysisText, setAnalysisText] = useState<string | null>(null);
-    const [editedAnalysisText, setEditedAnalysisText] = useState<string>(''); // State for edited analysis
+    const [preliminaryDDI, setPreliminaryDDI] = useState<string | null>(null);
+    const [editedAnalysisText, setEditedAnalysisText] = useState<string>('');
     const [showGenerateFinalButton, setShowGenerateFinalButton] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -219,7 +219,7 @@ export default function NewInspectionScreen() {
             return;
         }
         // Reset previous results
-        setAnalysisText(null);
+        setPreliminaryDDI(null);
         setGeneratedDdid(null);
         setOriginalDdid(null);
         setIsEditingDdid(false);
@@ -245,7 +245,7 @@ export default function NewInspectionScreen() {
 
             if (analysisResponse.data && analysisResponse.data.analysis) {
                 const initialAnalysis = analysisResponse.data.analysis;
-                setAnalysisText(initialAnalysis);
+                setPreliminaryDDI(initialAnalysis);
                 setEditedAnalysisText(initialAnalysis); // Initialize editor state
                 setShowAnalysisModal(true); // <--- Show the analysis modal
             } else {
@@ -308,7 +308,7 @@ export default function NewInspectionScreen() {
                 setOriginalDdid(receivedDdid);
                 setInspectionId(receivedInspectionId); // <-- Store the ID
                 setShowGenerateFinalButton(false);
-                setAnalysisText(null);
+                setPreliminaryDDI(null);
                 setShowAnalysisModal(false); // Ensure analysis modal is closed
             } else {
                 // Handle cases where ID might be missing even if DDID exists (e.g., DB error on backend)
@@ -322,7 +322,7 @@ export default function NewInspectionScreen() {
                 }
                 setInspectionId(null); // Ensure ID is null if something went wrong
                 setShowGenerateFinalButton(false);
-                setAnalysisText(null);
+                setPreliminaryDDI(null);
                 setShowAnalysisModal(false); // Ensure analysis modal is closed
             }
 
@@ -334,7 +334,7 @@ export default function NewInspectionScreen() {
         } finally {
             setIsGeneratingFinal(false);
             setShowAnalyzingPopup(false);
-            setAnalysisText(null); // Clear intermediate analysis state
+            setPreliminaryDDI(null); // Clear intermediate analysis state
             setEditedAnalysisText('');
             setShowAnalysisModal(false); // Ensure analysis modal is closed
         }
@@ -496,7 +496,7 @@ export default function NewInspectionScreen() {
         setShowDdidModal(false);
         setIsAnalyzing(false);
         setIsGeneratingFinal(false);
-        setAnalysisText(null);
+        setPreliminaryDDI(null);
         setShowGenerateFinalButton(false);
         setIsEditingDdid(false);
         setEditedDdid('');
@@ -642,7 +642,7 @@ export default function NewInspectionScreen() {
         // Reset edit state and call the final generation function again
         setIsEditingDdid(false);
         setEditedDdid('');
-        handleGenerateFinalStatement(analysisText || '');
+        handleGenerateFinalStatement(preliminaryDDI || '');
     };
     // --- End Edit/Save/Regenerate Handlers ---
 
@@ -726,16 +726,16 @@ export default function NewInspectionScreen() {
                 </View>
 
                 {/* Display Analysis Text if available */} 
-                {analysisText && !isEditingDdid && (
+                {preliminaryDDI && !isEditingDdid && (
                     <View style={styles.analysisContainer}>
                         <Text style={styles.analysisTitle}>AI Analysis:</Text>
-                        <Text style={styles.analysisContent}>{analysisText}</Text>
+                        <Text style={styles.analysisContent}>{preliminaryDDI}</Text>
                     </View>
                 )}
 
                 {/* --- Button Section --- */} 
                 {/* Initial State: Show Analyze Button */} 
-                {!analysisText && !generatedDdid && !isAnalyzing && !isGeneratingFinal && (
+                {!preliminaryDDI && !generatedDdid && !isAnalyzing && !isGeneratingFinal && (
                     <TouchableOpacity
                         style={[styles.button, styles.analyzeButton, (!imageUri || !description) && styles.buttonDisabled, Platform.OS === 'web' && styles.desktopButton ]}
                         onPress={handleAnalyzeDefect}
@@ -757,10 +757,10 @@ export default function NewInspectionScreen() {
                  )}
 
                  {/* Post-Analysis State: Show Generate Final Statement Button */} 
-                 {analysisText && showGenerateFinalButton && !isGeneratingFinal && !generatedDdid && (
+                 {preliminaryDDI && showGenerateFinalButton && !isGeneratingFinal && !generatedDdid && (
                      <TouchableOpacity
                          style={[styles.button, styles.generateFinalButton]}
-                         onPress={() => handleGenerateFinalStatement(analysisText)}
+                         onPress={() => handleGenerateFinalStatement(preliminaryDDI)}
                      >
                          {/* Use Send or different icon? */} 
                          <Send size={18} color="#fff" style={{marginRight: 8}} />
@@ -774,10 +774,10 @@ export default function NewInspectionScreen() {
             {/* Analysis Modal */}
             <AnalysisModal
                 visible={showAnalysisModal}
-                analysisText={analysisText} // Pass the initial analysis
+                analysisText={preliminaryDDI} // Pass preliminary DDI
                 onClose={() => setShowAnalysisModal(false)}
-                onEditSave={handleAnalysisSave} // Handle saving edited analysis locally
-                onGenerateStatement={handleGenerateFinalStatement} // Trigger final generation
+                onEditSave={handleAnalysisSave} // Saves edited DDI to editedAnalysisText
+                onGenerateStatement={handleGenerateFinalStatement} // Passes potentially edited text
             />
 
             {/* Final Statement Modal */}
