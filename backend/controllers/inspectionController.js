@@ -91,8 +91,59 @@ const deleteInspection = async (req, res) => {
   }
 };
 
+// Controller to update the DDID statement of an existing inspection
+const updateInspectionController = async (req, res) => {
+  const { id } = req.params; // Get inspection ID from route parameter
+  const { ddid } = req.body; // Get the edited DDID from request body
+  const userId = req.auth.userId; // Get authenticated user ID
+
+  if (!ddid) {
+    return res.status(400).json({ message: 'Missing DDID statement in request body.' });
+  }
+  if (!id) {
+     return res.status(400).json({ message: 'Missing inspection ID in request path.' });
+  }
+
+  console.log(`[updateInspectionController] User ${userId} attempting to update DDID for inspection ${id}`);
+
+  try {
+    // First, verify the user owns this inspection
+    const checkOwnerQuery = 'SELECT user_id FROM inspections WHERE id = $1';
+    const ownerResult = await pool.query(checkOwnerQuery, [id]);
+
+    if (ownerResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Inspection not found.' });
+    }
+
+    const ownerId = ownerResult.rows[0].user_id;
+    // TODO: Allow Admins to edit? If so, add admin check here.
+    if (ownerId !== userId) {
+        console.warn(`[updateInspectionController] User ${userId} does not own inspection ${id}. Owner: ${ownerId}`);
+        return res.status(403).json({ message: 'Forbidden: You do not own this inspection.' });
+    }
+
+    // Proceed with update
+    const updateQuery = 'UPDATE inspections SET ddid = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id';
+    const values = [ddid, id];
+    const updateResult = await pool.query(updateQuery, values);
+
+    if (updateResult.rowCount === 0) {
+         // This shouldn't happen if the owner check passed, but good practice
+         return res.status(404).json({ message: 'Inspection not found during update attempt.' });
+    }
+
+    console.log(`[updateInspectionController] Successfully updated DDID for inspection ${id}`);
+    res.status(200).json({ message: 'Inspection statement updated successfully.', inspectionId: id });
+
+  } catch (error) {
+    console.error(`[updateInspectionController] Error updating inspection ${id}:`, error);
+    res.status(500).json({ message: error.message || 'Failed to update inspection.' });
+  }
+};
+
 module.exports = {
   getInspections,
   createInspection,
   deleteInspection,
+  updateInspectionController,
 };

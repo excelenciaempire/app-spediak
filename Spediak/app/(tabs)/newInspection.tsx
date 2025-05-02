@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Button, Image, TextInput, StyleSheet, Alert, ScrollView, ActivityIndicator, TouchableOpacity, Platform, Dimensions, Modal, KeyboardAvoidingView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import axios from 'axios';
-import { ImagePlus, Send, BotMessageSquare, RefreshCcw, Mic, MicOff } from 'lucide-react-native';
+import { ImagePlus, Send, BotMessageSquare, RefreshCcw, Mic, MicOff, Camera, Edit, Save, RotateCcw, X, Eye, BrainCircuit } from 'lucide-react-native';
 import DdidModal from '../../src/components/DdidModal';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { BASE_URL } from '../../src/config/api'; // Import centralized BASE_URL
 import { COLORS } from '../../src/styles/colors'; // Corrected import path
 
@@ -26,10 +27,14 @@ export default function NewInspectionScreen() {
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [imageBase64, setImageBase64] = useState<string | null>(null);
     const [description, setDescription] = useState<string>('');
+    const [originalDdid, setOriginalDdid] = useState<string | null>(null);
     const [generatedDdid, setGeneratedDdid] = useState<string | null>(null);
     const [showDdidModal, setShowDdidModal] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [isGenerating, setIsGenerating] = useState<boolean>(false);
+    const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+    const [isGeneratingFinal, setIsGeneratingFinal] = useState<boolean>(false);
+    const [analysisText, setAnalysisText] = useState<string | null>(null);
+    const [showGenerateFinalButton, setShowGenerateFinalButton] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
@@ -37,7 +42,10 @@ export default function NewInspectionScreen() {
     const { getToken } = useAuth();
     const { user } = useUser();
     const [userState, setUserState] = useState<string>('NC'); // Default to NC
-    const [isUploading, setIsUploading] = useState<boolean>(false); // Add upload loading state
+    const [isUploading, setIsUploading] = useState<boolean>(false);
+    const [isEditingDdid, setIsEditingDdid] = useState<boolean>(false);
+    const [editedDdid, setEditedDdid] = useState<string>('');
+    const [inspectionId, setInspectionId] = useState<string | null>(null); // State for the saved inspection ID
 
     // --- Fetch user state from Clerk metadata ---
     useEffect(() => {
@@ -47,9 +55,9 @@ export default function NewInspectionScreen() {
     }, [user]);
     // --- End user state fetching ---
 
-    const pickImage = async () => {
+    const pickFromLibrary = async () => {
         if (Platform.OS === 'web') {
-            // Web: Directly launch library, skip permissions and camera option
+            // Web: Directly launch library
             try {
                 let result = await ImagePicker.launchImageLibraryAsync({
                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -63,73 +71,98 @@ export default function NewInspectionScreen() {
                handleImageError(error);
            }
         } else {
-            // Native: Request permissions and show options alert
-            const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+            // Native: Request library permissions and launch library
             const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-            if (cameraPermission.status !== 'granted' || libraryPermission.status !== 'granted') {
-                Alert.alert('Permission required', 'Camera and Media Library permissions are needed to select an image.');
+            if (libraryPermission.status !== 'granted') {
+                Alert.alert('Permission required', 'Media Library permission is needed to select an image.');
                 return;
             }
 
-            Alert.alert(
-                "Select Image Source",
-                "Choose where to get the image from:",
-                [
-                    {
-                        text: "Take Photo",
-                        onPress: async () => {
-                            try {
-                                let result = await ImagePicker.launchCameraAsync({
-                                    allowsEditing: true,
-                                    aspect: [1, 1],
-                                    quality: 0.8,
-                                    base64: true,
-                                });
-                                handleImageResult(result);
-                            } catch (error) {
-                                handleImageError(error);
-                            }
-                        }
-                    },
-                    {
-                        text: "Choose from Library",
-                        onPress: async () => {
-                            try {
-                                 let result = await ImagePicker.launchImageLibraryAsync({
-                                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                                    allowsEditing: true,
-                                    aspect: [1, 1],
-                                    quality: 0.8,
-                                    base64: true,
-                                });
-                                handleImageResult(result);
-                            } catch (error) {
-                                handleImageError(error);
-                            }
-                        }
-                    },
-                    {
-                        text: "Cancel",
-                        style: "cancel"
-                    }
-                ]
-            );
+            try {
+                let result = await ImagePicker.launchImageLibraryAsync({
+                   mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                   allowsEditing: true,
+                   aspect: [1, 1],
+                   quality: 0.8,
+                   base64: true,
+               });
+               handleImageResult(result);
+           } catch (error) {
+               handleImageError(error);
+           }
         }
     };
 
-    // Helper function to handle result from either picker or drag/drop
-    const handleImageResult = (result: ImagePicker.ImagePickerResult | { assets: { uri: string; base64?: string }[] }) => {
-         if (!('canceled' in result && result.canceled) && result.assets && result.assets.length > 0) {
-            const asset = result.assets[0];
-            setImageUri(asset.uri);
-            setImageBase64(asset.base64 ?? null);
-            setGeneratedDdid(null); // Clear previous DDID
-            setError(null); // Clear previous error
-        } else {
-            console.log('Image selection cancelled or failed');
+    // NEW function to specifically take a photo (Native only)
+    const takePhoto = async () => {
+        if (Platform.OS === 'web') return; // Should not be callable on web
+
+        const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+
+        if (cameraPermission.status !== 'granted') {
+            Alert.alert('Permission required', 'Camera permission is needed to take a photo.');
+            return;
+        }
+
+        try {
+            let result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+                base64: true,
+            });
+            handleImageResult(result);
+        } catch (error) {
+            handleImageError(error);
         }
     };
+
+    // Helper function to handle result from picker/drop
+    const handleImageResult = async (result: ImagePicker.ImagePickerResult | { assets: { uri: string; base64?: string }[] }) => {
+        if (!('canceled' in result && result.canceled) && result.assets && result.assets.length > 0) {
+           const asset = result.assets[0];
+           // Check if width/height exist before logging (Type Guard)
+           if ('width' in asset && 'height' in asset) {
+                console.log(`[Image Handling] Original image URI: ${asset.uri}, size: ${asset.width}x${asset.height}`);
+           } else {
+                console.log(`[Image Handling] Original image URI: ${asset.uri} (dimensions not available)`);
+           }
+
+           try {
+                console.log('[Image Handling] Resizing and compressing image...');
+                const manipResult = await manipulateAsync(
+                    asset.uri, // Use the original URI from picker
+                    [
+                        { resize: { width: 1024 } } // Resize width to max 1024px (height adjusts automatically)
+                        // Or use { resize: { height: 1024 } }
+                    ],
+                    {
+                         compress: 0.7, // Apply compression (0.0 - 1.0)
+                         format: SaveFormat.JPEG, // Save as JPEG
+                         base64: true // Get base64 data after manipulation
+                    }
+                );
+                console.log(`[Image Handling] Manipulated image URI: ${manipResult.uri}, size: ${manipResult.width}x${manipResult.height}`);
+
+                // Use the manipulated image data
+                setImageUri(manipResult.uri); // Show the resized preview
+                setImageBase64(manipResult.base64 ?? null);
+                setOriginalDdid(null);
+                setGeneratedDdid(null);
+                setError(null);
+
+           } catch (manipError) {
+                console.error("[Image Handling] Error manipulating image:", manipError);
+                setError('Failed to process image. Please try again.');
+                // Fallback maybe? Or just show error. For now, clear state.
+                setImageUri(null);
+                setImageBase64(null);
+           }
+       } else {
+           console.log('Image selection cancelled or failed');
+       }
+   };
 
      // Helper function to handle errors from either picker
     const handleImageError = (error: any) => {
@@ -173,112 +206,128 @@ export default function NewInspectionScreen() {
     };
     // --- END NEW FUNCTION ---
 
-    // Modify saveInspection to accept Cloudinary URL
-    const saveInspection = async (ddid: string, cloudinaryImageUrl: string | null) => {
-        console.log("[saveInspection] Attempting to save inspection with Cloudinary URL:", cloudinaryImageUrl);
-        try {
-            const token = await getToken();
-            if (!token) throw new Error("User not authenticated");
-
-            const payload = {
-                description,
-                ddid,
-                imageUrl: cloudinaryImageUrl, // Use the Cloudinary URL here
-                userState
-            };
-            console.log(`[saveInspection] Preparing to POST to ${BASE_URL}/api/inspections with payload:`, JSON.stringify(payload));
-
-            // Removed the imageUri check here as we now use cloudinaryImageUrl
-
-            await axios.post(`${BASE_URL}/api/inspections`, payload, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            console.log("[saveInspection] Inspection saved successfully via API.");
-
-        } catch (err: any) {
-            // Ensure error logging is robust
-            console.error("[saveInspection] Error caught during save attempt:", err);
-            if (err.response) {
-                 console.error("[saveInspection] Error response data:", err.response.data);
-                 console.error("[saveInspection] Error response status:", err.response.status);
-            }
-            const errorMessage = err.response?.data?.message || err.message || "Could not save the inspection.";
-            Alert.alert("Save Failed", `Error: ${errorMessage}`); // Show detailed error
-        }
-    };
-
-    const handleGenerateDdid = async () => {
-        console.log("[handleGenerateDdid] Function called");
+    // --- Handler for Initial Analysis ---
+    const handleAnalyzeDefect = useCallback(async () => {
+        console.log("[handleAnalyzeDefect] Function called");
         if (!imageBase64 || !description) {
             Alert.alert("Missing Information", "Please upload an image and provide a description.");
             return;
         }
-        // Keep isGenerating for the whole process (upload + DDID + save)
-        setIsGenerating(true);
-        setShowAnalyzingPopup(true);
-        setError(null);
+        // Reset previous results
+        setAnalysisText(null);
         setGeneratedDdid(null);
-        let cloudinaryUrl: string | null = null; // Variable to hold the result
+        setOriginalDdid(null);
+        setIsEditingDdid(false);
+        setShowGenerateFinalButton(false);
+        setError(null);
+        setIsAnalyzing(true);
+        setShowAnalyzingPopup(true); // Show popup for analysis
 
         try {
-            // --- Step 1: Upload Image ---
-            cloudinaryUrl = await uploadImageToCloudinary(imageBase64);
-            if (!cloudinaryUrl) {
-                // Error handling is done within uploadImageToCloudinary, just exit
-                setShowAnalyzingPopup(false); // Hide popup if upload fails
-                setIsGenerating(false);
-                return;
-            }
-
-            // --- Step 2: Generate DDID --- (Now uses original description)
             const token = await getToken();
             if (!token) throw new Error("Authentication token not found.");
-            console.log(`[handleGenerateDdid] Calling POST ${BASE_URL}/api/generate-ddid`);
-            const ddidResponse = await axios.post(`${BASE_URL}/api/generate-ddid`, {
-                // Send the *original* base64 for analysis, not the Cloudinary URL
+
+            // --- Backend Call for Analysis ONLY ---
+            console.log(`[handleAnalyzeDefect] Calling POST ${BASE_URL}/api/analyze-defect`);
+            // !! IMPORTANT: We need to create this endpoint on the backend !!
+            const analysisResponse = await axios.post(`${BASE_URL}/api/analyze-defect`, {
                 imageBase64,
                 description,
                 userState,
             }, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            console.log("[handleGenerateDdid] DDID API call successful, status:", ddidResponse.status);
 
-            if (ddidResponse.data && ddidResponse.data.ddid) {
-                const receivedDdid = ddidResponse.data.ddid;
-                console.log("[handleGenerateDdid] Valid DDID received:", receivedDdid);
-                setShowAnalyzingPopup(false);
-                setGeneratedDdid(receivedDdid);
-                setShowDdidModal(true);
-
-                // --- Step 3: Save Inspection (using Cloudinary URL) ---
-                console.log("[handleGenerateDdid] Attempting to call saveInspection with Cloudinary URL...");
-                await saveInspection(receivedDdid, cloudinaryUrl);
-                    console.log("[handleGenerateDdid] saveInspection call completed.");
-
+            if (analysisResponse.data && analysisResponse.data.analysis) {
+                setAnalysisText(analysisResponse.data.analysis);
+                setShowGenerateFinalButton(true);
             } else {
-                setShowAnalyzingPopup(false);
-                throw new Error("Invalid response structure from DDID server.");
+                throw new Error("Invalid response structure from analysis server.");
             }
 
         } catch (err: any) {
-            // Ensure error logging is robust
-            console.error("[handleGenerateDdid] Error caught:", err);
-            if (err.response) {
-                console.error("[handleGenerateDdid] Error response data:", err.response.data);
-                console.error("[handleGenerateDdid] Error response status:", err.response.status);
-            }
-            const errorMessage = err.response?.data?.message || err.message || "Failed to generate DDID or save inspection";
-            setError(errorMessage);
-            Alert.alert("Operation Failed", `An error occurred: ${errorMessage}`);
-            setShowAnalyzingPopup(false); // Ensure popup hides on error
+            console.error("[handleAnalyzeDefect] Error:", err);
+            const message = err.response?.data?.message || err.message || "Failed to analyze defect";
+            setError(message);
+            Alert.alert("Analysis Failed", message);
         } finally {
-            console.log("[handleGenerateDdid] Setting isGenerating = false in finally block");
-            setIsGenerating(false);
-            // Ensure analyzing pop-up is hidden just in case
+            setIsAnalyzing(false);
             setShowAnalyzingPopup(false);
         }
-    };
+    }, [imageBase64, description, userState, getToken]);
+
+    // --- Handler for Final Statement Generation & Save ---
+    const handleGenerateFinalStatement = useCallback(async () => {
+        console.log("[handleGenerateFinalStatement] Function called");
+        if (!imageBase64 || !description || !analysisText) { // Might use analysisText in prompt later
+            Alert.alert("Missing Information", "Analysis must be completed first.");
+            return;
+        }
+        setIsGeneratingFinal(true);
+        setShowAnalyzingPopup(true); // Show popup for final generation
+        setError(null);
+        let cloudinaryUrl: string | null = null;
+
+        try {
+            // --- Step 1: Upload Image (if not already uploaded - might optimize later) ---
+            // For now, re-uploading simplifies flow
+            cloudinaryUrl = await uploadImageToCloudinary(imageBase64);
+            if (!cloudinaryUrl) {
+                setShowAnalyzingPopup(false);
+                setIsGeneratingFinal(false);
+                return;
+            }
+
+            // --- Step 2: Generate Final DDID Statement --- 
+            const token = await getToken();
+            if (!token) throw new Error("Authentication token not found.");
+            console.log(`[handleGenerateFinalStatement] Calling POST ${BASE_URL}/api/generate-ddid`);
+            // This calls the ORIGINAL endpoint which includes saving
+            const ddidResponse = await axios.post(`${BASE_URL}/api/generate-ddid`, {
+                imageBase64, // Send image again for context
+                description, // Original description
+                // Optionally pass analysisText if the backend prompt uses it
+                // analysis: analysisText,
+                userState,
+                imageUrl: cloudinaryUrl, // Provide URL for saving
+            }, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (ddidResponse.data && ddidResponse.data.ddid && ddidResponse.data.inspectionId) {
+                const receivedDdid = ddidResponse.data.ddid;
+                const receivedInspectionId = ddidResponse.data.inspectionId;
+                console.log(`[handleGenerateFinalStatement] Final DDID received: ${receivedDdid}, Inspection ID: ${receivedInspectionId}`);
+                setGeneratedDdid(receivedDdid);
+                setOriginalDdid(receivedDdid);
+                setInspectionId(receivedInspectionId); // <-- Store the ID
+                setShowGenerateFinalButton(false);
+                setAnalysisText(null);
+            } else {
+                // Handle cases where ID might be missing even if DDID exists (e.g., DB error on backend)
+                if(ddidResponse.data && ddidResponse.data.ddid) {
+                    setGeneratedDdid(ddidResponse.data.ddid);
+                     setOriginalDdid(ddidResponse.data.ddid);
+                    console.warn('[handleGenerateFinalStatement] DDID generated but failed to get Inspection ID from response.');
+                    setError('Statement generated, but failed to retrieve saved record ID. Cannot edit.');
+                } else {
+                     throw new Error("Invalid response structure from DDID server.");
+                }
+                setInspectionId(null); // Ensure ID is null if something went wrong
+                setShowGenerateFinalButton(false);
+                setAnalysisText(null);
+            }
+
+        } catch (err: any) {
+            console.error("[handleGenerateFinalStatement] Error:", err);
+            const message = err.response?.data?.message || err.message || "Failed to generate final statement or save inspection";
+            setError(message);
+            Alert.alert("Operation Failed", message);
+        } finally {
+            setIsGeneratingFinal(false);
+            setShowAnalyzingPopup(false);
+        }
+    }, [imageBase64, description, userState, analysisText, getToken, uploadImageToCloudinary]);
 
     async function startRecording() {
         console.log('[Audio] Requesting permissions...');
@@ -301,11 +350,11 @@ export default function NewInspectionScreen() {
 
             console.log('[Audio] Starting recording instance creation...');
             const { recording } = await Audio.Recording.createAsync(
-               Audio.RecordingOptionsPresets.HIGH_QUALITY
+                Audio.RecordingOptionsPresets.LOW_QUALITY
             );
             setRecording(recording);
             setIsRecording(true);
-            console.log('[Audio] Recording started successfully.');
+            console.log('[Audio] Recording started successfully with LOW quality preset.');
         } catch (err) {
             console.error('[Audio] Failed to start recording', err);
             const message = err instanceof Error ? err.message : String(err);
@@ -424,10 +473,17 @@ export default function NewInspectionScreen() {
         setImageUri(null);
         setImageBase64(null);
         setDescription('');
+        setOriginalDdid(null);
         setGeneratedDdid(null);
         setError(null);
         setShowDdidModal(false);
-        setIsGenerating(false);
+        setIsAnalyzing(false);
+        setIsGeneratingFinal(false);
+        setAnalysisText(null);
+        setShowGenerateFinalButton(false);
+        setIsEditingDdid(false);
+        setEditedDdid('');
+        setInspectionId(null); // Reset inspection ID
         if (recording) {
              recording.stopAndUnloadAsync().catch(e => console.error("Error stopping recording on reset:", e));
         }
@@ -502,6 +558,77 @@ export default function NewInspectionScreen() {
     };
     // --- End Web Drag and Drop Handlers ---
 
+    // --- Edit/Save/Regenerate Handlers --- 
+    const handleEditStatement = () => {
+        if (generatedDdid) {
+            setEditedDdid(generatedDdid); // Initialize editor with generated text
+            setIsEditingDdid(true);
+            console.log("Editing statement...");
+        }
+    };
+
+    const handleSaveEditedStatement = async () => {
+        if (!editedDdid || !originalDdid || !inspectionId) {
+            Alert.alert('Error', 'Cannot save edit. Missing original data or record ID.');
+            return;
+        }
+        console.log(`Attempting to save edited statement for inspection ID: ${inspectionId}...`);
+        // Add loading state?
+        // setIsLoading(true); // Need to add this state if desired
+
+        try {
+            const token = await getToken();
+            if (!token) throw new Error("Authentication token not found.");
+
+            // 1. Update the inspection in the database
+            console.log(`Calling PUT ${BASE_URL}/api/inspections/${inspectionId}`);
+            await axios.put(`${BASE_URL}/api/inspections/${inspectionId}`, 
+                { ddid: editedDdid }, // Send the edited DDID in the body
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            console.log(`Inspection ${inspectionId} updated successfully.`);
+
+            // 2. Log the edit for training (Optional but recommended)
+            try {
+                 console.log(`Calling POST ${BASE_URL}/api/log-statement-edit`);
+                 await axios.post(`${BASE_URL}/api/log-statement-edit`, 
+                    { 
+                        inspectionId: inspectionId,
+                        originalDdid: originalDdid,
+                        editedDdid: editedDdid
+                    }, 
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                 console.log(`Edit for inspection ${inspectionId} logged successfully.`);
+            } catch (logError: any) {
+                 console.warn("[handleSaveEditedStatement] Failed to log edit:", logError.response?.data || logError.message);
+                 // Don't block user if logging fails, but maybe notify?
+            }
+
+            // Update local state on success
+            setGeneratedDdid(editedDdid); // Reflect the saved edit
+            setIsEditingDdid(false);
+            Alert.alert("Success", "Statement updated successfully.");
+
+        } catch (error: any) {
+            console.error("[handleSaveEditedStatement] Error saving edit:", error);
+            const message = error.response?.data?.message || error.message || 'Failed to save edited statement.';
+            Alert.alert('Save Error', message);
+            // Maybe revert local state or keep edit mode open?
+        } finally {
+            // setIsLoading(false);
+        }
+    };
+
+    const handleRegenerateStatement = () => {
+        console.log("Regenerating final statement...");
+        // Reset edit state and call the final generation function again
+        setIsEditingDdid(false);
+        setEditedDdid('');
+        handleGenerateFinalStatement();
+    };
+    // --- End Edit/Save/Regenerate Handlers ---
+
     return (
         <ScrollView
             style={styles.container}
@@ -523,7 +650,7 @@ export default function NewInspectionScreen() {
                         onDrop={handleDrop as any}       // Cast type for web-only props
                         style={webDropZoneStyle} // Use web-specific style object
                     >
-                        <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+                        <TouchableOpacity style={styles.imagePicker} onPress={pickFromLibrary}>
                             {imageUri ? (
                                 <Image source={{ uri: imageUri }} style={styles.imagePreview} />
                             ) : (
@@ -535,59 +662,142 @@ export default function NewInspectionScreen() {
                         </TouchableOpacity>
                     </div>
                  ) : (
-                    <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-                        {imageUri ? (
-                            <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-                        ) : (
-                            <View style={styles.imagePlaceholder}>
-                                <ImagePlus size={50} color="#6c757d" />
-                                <Text style={styles.imagePlaceholderText}>Tap to select image</Text>
-                            </View>
+                    <View style={styles.imagePickerContainer}>
+                        <TouchableOpacity style={styles.imagePicker} onPress={pickFromLibrary}>
+                            {imageUri ? (
+                                <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+                            ) : (
+                                <View style={styles.imagePlaceholder}>
+                                    <ImagePlus size={50} color="#6c757d" />
+                                    <Text style={styles.imagePlaceholderText}>Tap to choose from library</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                        {!imageUri && (
+                             <TouchableOpacity style={styles.cameraButton} onPress={takePhoto}>
+                                 <Camera size={24} color={COLORS.white} style={styles.cameraIcon}/>
+                             </TouchableOpacity>
                         )}
-                    </TouchableOpacity>
+                    </View>
                  )}
 
                 <View style={styles.inputContainer}>
                     <TextInput
-                        style={styles.input}
-                        placeholder="Describe the image and provide details..."
-                        value={description}
-                        onChangeText={setDescription}
+                        style={[styles.input, isEditingDdid && styles.editingInput]}
+                        placeholder={isEditingDdid ? "Edit the generated statement..." : "Describe the image and provide details..."}
+                        value={isEditingDdid ? editedDdid : description}
+                        onChangeText={isEditingDdid ? setEditedDdid : setDescription}
                         multiline
-                        editable={!isRecording && !isTranscribing}
+                        editable={!isAnalyzing && !isGeneratingFinal && !isUploading && !isRecording && !isTranscribing}
+                        selectTextOnFocus={isEditingDdid}
                     />
-                    <TouchableOpacity
-                        style={styles.micButton}
-                        onPress={isRecording ? stopRecording : startRecording}
-                        disabled={isTranscribing}
+                    {!isEditingDdid && (
+                        <TouchableOpacity
+                            style={styles.micButton}
+                            onPress={isRecording ? stopRecording : startRecording}
+                            disabled={isTranscribing}
                         >
-                        {isRecording ? (
-                             <MicOff size={24} color="#dc3545" />
-                        ) : isTranscribing ? (
-                             <ActivityIndicator size="small" color="#007bff" />
-                        ) : (
-                             <Mic size={24} color="#007bff" />
-                        )}
-                    </TouchableOpacity>
+                            {isRecording ? (
+                                 <MicOff size={24} color={COLORS.success} />
+                            ) : isTranscribing ? (
+                                 <ActivityIndicator size="small" color="#007bff" />
+                            ) : (
+                                 <Mic size={24} color={COLORS.primary} />
+                            )}
+                        </TouchableOpacity>
+                    )}
                 </View>
 
-                <TouchableOpacity
-                    style={[styles.button, styles.generateButton, (!imageUri || !description || isGenerating || isUploading) && styles.buttonDisabled]}
-                    onPress={handleGenerateDdid}
-                    disabled={!imageUri || !description || isGenerating || isUploading}
-                >
-                    <Text style={styles.buttonText}>
-                         {isUploading ? 'Uploading...' : isGenerating ? 'Analyzing...' : 'Generate Statement'}
-                    </Text>
-                </TouchableOpacity>
+                {/* Display Analysis Text if available */} 
+                {analysisText && !isEditingDdid && (
+                    <View style={styles.analysisContainer}>
+                        <Text style={styles.analysisTitle}>AI Analysis:</Text>
+                        <Text style={styles.analysisContent}>{analysisText}</Text>
+                    </View>
+                )}
 
-                <TouchableOpacity
-                    style={[styles.button, styles.newChatButton]}
-                    onPress={resetInspection}
-                >
-                    <RefreshCcw size={20} color={COLORS.darkText} style={styles.buttonIcon} />
-                    <Text style={styles.buttonTextSecondary}>New Defect</Text>
-                </TouchableOpacity>
+                {/* --- Button Section --- */} 
+                {/* Initial State: Show Analyze Button */} 
+                {!analysisText && !generatedDdid && !isAnalyzing && (
+                    <TouchableOpacity
+                        style={[styles.button, styles.analyzeButton, (!imageUri || !description || isAnalyzing) && styles.buttonDisabled]}
+                        onPress={handleAnalyzeDefect}
+                        disabled={!imageUri || !description || isAnalyzing}
+                    >
+                        <BrainCircuit size={18} color="#fff" style={{marginRight: 8}} />
+                        <Text style={styles.buttonText}>Analyze</Text>
+                    </TouchableOpacity>
+                )}
+
+                {/* Analyzing State */} 
+                {(isAnalyzing || isGeneratingFinal || isUploading) && (
+                     <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={COLORS.primary} />
+                        <Text style={styles.loadingText}>
+                            {isUploading ? 'Uploading...' : isAnalyzing ? 'Analyzing Defect...' : 'Generating Statement...'}
+                        </Text>
+                     </View>
+                 )}
+
+                 {/* Post-Analysis State: Show Generate Final Statement Button */} 
+                 {analysisText && showGenerateFinalButton && !isGeneratingFinal && !generatedDdid && (
+                     <TouchableOpacity
+                         style={[styles.button, styles.generateFinalButton]}
+                         onPress={handleGenerateFinalStatement}
+                     >
+                         {/* Use Send or different icon? */} 
+                         <Send size={18} color="#fff" style={{marginRight: 8}} />
+                         <Text style={styles.buttonText}>Generate Statement</Text>
+                     </TouchableOpacity>
+                 )}
+
+                {/* Post-Final Generation State: Show Edit/Regenerate/View */} 
+                {generatedDdid && !isAnalyzing && !isGeneratingFinal && !isUploading && (
+                    <View style={styles.postGenButtonContainer}>
+                        {isEditingDdid ? (
+                             <>
+                                <TouchableOpacity
+                                    style={[styles.button, styles.saveEditButton, styles.buttonThird]}
+                                    onPress={handleSaveEditedStatement}
+                                >
+                                    <Save size={18} color="#fff" />
+                                    <Text style={[styles.buttonText, {marginLeft: 8}]}>Save Edit</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.button, styles.cancelEditButton, styles.buttonThird]}
+                                    onPress={() => setIsEditingDdid(false)}
+                                >
+                                    <X size={18} color={COLORS.darkText} />
+                                    <Text style={[styles.buttonTextSecondary, {marginLeft: 8}]}>Cancel</Text>
+                                </TouchableOpacity>
+                            </>
+                         ) : (
+                             <>
+                                 <TouchableOpacity
+                                     style={[styles.button, styles.editButton, styles.buttonThird]}
+                                     onPress={handleEditStatement}
+                                 >
+                                     <Edit size={18} color={COLORS.primary} />
+                                     <Text style={[styles.buttonTextAction, {marginLeft: 8}]}>Edit</Text>
+                                 </TouchableOpacity>
+                                 <TouchableOpacity
+                                     style={[styles.button, styles.regenerateButton, styles.buttonThird]}
+                                     onPress={handleRegenerateStatement}
+                                 >
+                                      <RotateCcw size={18} color={COLORS.primary} />
+                                     <Text style={[styles.buttonTextAction, {marginLeft: 8}]}>Regenerate</Text>
+                                 </TouchableOpacity>
+                                 <TouchableOpacity
+                                     style={[styles.button, styles.viewButton, styles.buttonThird]}
+                                     onPress={() => setShowDdidModal(true)}
+                                 >
+                                      <Eye size={18} color={COLORS.primary} />
+                                     <Text style={[styles.buttonTextAction, {marginLeft: 8}]}>View</Text>
+                                 </TouchableOpacity>
+                             </>
+                         )}
+                    </View>
+                )}
 
                 {error && <Text style={styles.errorText}>{error}</Text>}
             </KeyboardAvoidingView>
@@ -634,6 +844,8 @@ const styles = StyleSheet.create({
     contentContainer: {
         padding: 20,
         alignItems: 'center', // Center content horizontally
+        flexGrow: 1, // Ensure content can grow to fill space
+        justifyContent: 'space-between' // Push elements apart vertically
     },
     userStateText: {
         fontSize: 16,
@@ -641,27 +853,27 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         alignSelf: 'flex-end', // Position to the right
     },
+    imagePickerContainer: {
+        width: width * 0.85,
+        alignSelf: 'center',
+        marginBottom: 20,
+        position: 'relative',
+    },
     imagePicker: {
-        width: '100%', // Occupy full width of parent (dropzone or screen padding)
-        // Removed height: 200
-        aspectRatio: 1, // Ensure the picker itself is square
+        width: '100%',
+        aspectRatio: 1,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#f0f2f5',
         borderRadius: 10,
-        marginBottom: 20,
         borderWidth: 2,
         borderColor: '#ddd',
         borderStyle: 'dashed',
         ...Platform.select({
              native: {
-                 // For native, explicitly set width relative to screen
-                 width: width * 0.85, // Adjust percentage as needed
-                 alignSelf: 'center', // Center native picker
              },
              web: {
-                 // Web uses parent (dropzone) width
-                 maxWidth: '100%', // Ensure it doesn't exceed dropzone
+                 maxWidth: '100%',
              }
          }),
     },
@@ -677,6 +889,7 @@ const styles = StyleSheet.create({
     imagePlaceholderText: {
         marginTop: 10,
         color: '#6c757d',
+        textAlign: 'center',
     },
     inputContainer: {
         flexDirection: 'row',
@@ -696,8 +909,13 @@ const styles = StyleSheet.create({
         paddingRight: 50, // Add padding to make space for the mic
         minHeight: 100,
         fontSize: 16,
-        marginRight: 0, // Remove original margin
+        marginRight: 0, // Adjusted in previous step
         textAlignVertical: 'top',
+    },
+    editingInput: {
+        borderColor: COLORS.primary, // Highlight when editing
+        backgroundColor: '#eef4ff',
+        minHeight: 150, // Maybe taller for editing
     },
     micButton: {
         position: 'absolute', // Position absolutely within the container
@@ -708,19 +926,25 @@ const styles = StyleSheet.create({
         // Ensure touch area is sufficient if padding is removed
     },
     button: {
-        width: '100%',
-        maxWidth: 500, // Max width for buttons
-        paddingVertical: 15,
-        borderRadius: 8,
+        paddingVertical: 12,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 10,
-        alignSelf: 'center', // Added to center the button
+        borderRadius: 8,
+        marginHorizontal: '1%',
+    },
+    buttonHalf: {
+        flex: 1, // Takes half space in initial container
+    },
+    buttonThird: {
+        flex: 1, // Takes third space in post-gen container
+        paddingHorizontal: 10, // Adjust padding if needed
     },
     buttonText: {
         color: '#fff',
-        fontSize: 16,
+        fontSize: 16, // Slightly smaller text might be needed
         fontWeight: 'bold',
+        textAlign: 'center', // Ensure text centers if it wraps
     },
     generateButton: {
         backgroundColor: COLORS.primary,
@@ -742,8 +966,9 @@ const styles = StyleSheet.create({
     },
     buttonTextSecondary: {
         color: COLORS.darkText,
-        fontSize: 17,
+        fontSize: 16, // Slightly smaller text might be needed
         fontWeight: '600',
+        textAlign: 'center',
     },
     errorText: {
         color: 'red',
@@ -775,5 +1000,102 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
     },
-    // ... modal styles might go here if defined inline
+    buttonContainer: { // For Initial Generate/New
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        maxWidth: 500,
+        alignSelf: 'center',
+        marginBottom: 15,
+    },
+    postGenButtonContainer: { // For Edit/Save/Regenerate
+        flexDirection: 'row',
+        justifyContent: 'space-around', // Space buttons evenly
+        width: '100%',
+        maxWidth: 500,
+        alignSelf: 'center',
+        marginBottom: 15,
+    },
+    editButton: {
+        backgroundColor: '#e9ecef',
+        borderColor: COLORS.primary,
+        borderWidth: 1,
+    },
+    saveEditButton: {
+        backgroundColor: COLORS.success, // Green for save
+    },
+    cancelEditButton: {
+        backgroundColor: '#e9ecef',
+        borderColor: '#ced4da',
+        borderWidth: 1,
+    },
+    regenerateButton: {
+        backgroundColor: '#e9ecef',
+        borderColor: COLORS.primary,
+        borderWidth: 1,
+    },
+    viewButton: {
+        backgroundColor: '#e9ecef',
+        borderColor: COLORS.primary,
+        borderWidth: 1,
+    },
+    buttonTextAction: { // For Edit, Regenerate, View buttons
+        color: COLORS.primary,
+        fontSize: 14, // Smaller text for smaller buttons
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+    cameraButton: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        backgroundColor: COLORS.primary,
+        borderRadius: 25,
+        padding: 10,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1.5,
+    },
+    cameraIcon: {
+        // Currently no specific style needed beyond size/color
+    },
+    analysisContainer: {
+        width: '100%',
+        maxWidth: 500,
+        alignSelf: 'center',
+        backgroundColor: '#e9f5ff',
+        borderRadius: 8,
+        padding: 15,
+        marginBottom: 15,
+        borderLeftWidth: 4,
+        borderLeftColor: COLORS.primary,
+    },
+    analysisTitle: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        color: COLORS.primary,
+        marginBottom: 5,
+    },
+    analysisContent: {
+        fontSize: 14,
+        color: '#333',
+        lineHeight: 20,
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        marginVertical: 20,
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 16,
+        color: COLORS.primary,
+    },
+    analyzeButton: {
+        backgroundColor: COLORS.primary, // Or a different color?
+    },
+    generateFinalButton: {
+        backgroundColor: COLORS.success, // Green for final step?
+    },
 });
