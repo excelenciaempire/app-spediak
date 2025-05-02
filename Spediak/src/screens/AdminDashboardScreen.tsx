@@ -8,6 +8,7 @@ import { COLORS } from '../styles/colors';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { Search, Eye, UserCircle } from 'lucide-react-native';
 import DdidModal from '../components/DdidModal';
+import AdminSettingsTab from '../components/admin/AdminSettingsTab';
 
 // Interface for the combined data expected from the admin endpoint
 interface AdminInspectionData {
@@ -34,11 +35,20 @@ interface UserData {
     inspectionCount: number; // Added inspection count
 }
 
+// Updated Interface for API response
+interface PaginatedResponse<T> {
+    data: T[];
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+}
+
 // Component for the Inspection List
 const InspectionList: React.FC = () => {
     const [inspections, setInspections] = useState<AdminInspectionData[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+    const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false); // State for loading more
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState('newest');
@@ -46,51 +56,90 @@ const InspectionList: React.FC = () => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const { getToken } = useAuth();
 
-    const fetchData = useCallback(async () => {
-        console.log('[AdminInspections] Fetching all inspections data...');
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const limit = 10; // Items per page
+
+    const fetchData = useCallback(async (page = 1, refreshing = false) => {
+        console.log(`[AdminInspections] Fetching inspections page ${page}...`);
         setError(null);
+        if (page === 1) setIsLoading(true);
+        else setIsLoadingMore(true);
+
         try {
             const token = await getToken();
             if (!token) throw new Error("User not authenticated");
-            setIsLoading(true);
-            const response = await axios.get<AdminInspectionData[]>(`${BASE_URL}/api/admin/all-inspections`, { // Expecting flat array now
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setInspections(response.data || []); // Use response.data directly
+
+            const response = await axios.get<PaginatedResponse<AdminInspectionData>>(
+                `${BASE_URL}/api/admin/all-inspections?page=${page}&limit=${limit}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+
+            const { data, currentPage: fetchedPage, totalPages: fetchedTotalPages } = response.data;
+
+            setInspections(prev => (page === 1 || refreshing ? data : [...prev, ...data]));
+            setCurrentPage(fetchedPage);
+            setTotalPages(fetchedTotalPages);
+
         } catch (err: any) {
              console.error("[AdminInspections] Error fetching data:", err);
             let errorMessage = "Failed to fetch inspection data.";
             if (err.response) { errorMessage = err.response.data?.message || errorMessage; }
             setError(errorMessage);
         } finally {
-            setIsLoading(false);
+            if (page === 1) setIsLoading(false);
+            else setIsLoadingMore(false);
+            if (refreshing) setIsRefreshing(false);
         }
-    }, [getToken]);
+    }, [getToken, limit]); // Added limit to dependencies
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(1); }, [fetchData]); // Fetch initial page
 
     const onRefresh = useCallback(async () => {
         setIsRefreshing(true);
-        await fetchData();
-        setIsRefreshing(false);
+        setCurrentPage(1); // Reset page on refresh
+        setTotalPages(1);
+        await fetchData(1, true); // Pass refreshing flag
+        // setIsRefreshing(false); // Handled in fetchData finally block
     }, [fetchData]);
 
+    const handleLoadMore = useCallback(() => {
+        if (!isLoadingMore && currentPage < totalPages) {
+            console.log('[AdminInspections] Loading more inspections...');
+            fetchData(currentPage + 1);
+        }
+    }, [isLoadingMore, currentPage, totalPages, fetchData]);
+
     const processedInspections = useMemo(() => {
-        let filtered = inspections;
+        // Ensure inspections is an array before processing
+        if (!Array.isArray(inspections)) {
+            console.warn('[processedInspections] inspections state is not an array:', inspections);
+            return []; // Return empty array if state is invalid
+        }
+
+        let filtered = [...inspections]; // Create a shallow copy to avoid sorting the original state directly
         if (searchQuery) {
             const lowerCaseQuery = searchQuery.toLowerCase();
-            filtered = inspections.filter(insp =>
+            filtered = filtered.filter(insp => // Filter the copy
                 insp.userName?.toLowerCase().includes(lowerCaseQuery) ||
                 insp.userEmail?.toLowerCase().includes(lowerCaseQuery) ||
                 insp.description?.toLowerCase().includes(lowerCaseQuery) ||
                 insp.ddid?.toLowerCase().includes(lowerCaseQuery)
             );
         }
+
+        // Sort the filtered copy
         filtered.sort((a, b) => {
             const dateA = new Date(a.created_at).getTime();
             const dateB = new Date(b.created_at).getTime();
+            // Handle potential invalid dates (though unlikely if data is good)
+            if (isNaN(dateA) || isNaN(dateB)) return 0;
             return sortBy === 'newest' ? dateB - dateA : dateA - dateB;
         });
+
         return filtered;
     }, [inspections, searchQuery, sortBy]);
 
@@ -145,7 +194,12 @@ const InspectionList: React.FC = () => {
         </View>
     );
 
-    if (isLoading && !isRefreshing) return <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />;
+    const renderFooter = () => {
+        if (!isLoadingMore) return null;
+        return <ActivityIndicator style={{ marginVertical: 20 }} size="large" color={COLORS.primary} />;
+    };
+
+    if (isLoading && !isRefreshing && !error) return <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />;
     if (error) return <Text style={styles.errorText}>{error}</Text>;
 
     return (
@@ -184,6 +238,9 @@ const InspectionList: React.FC = () => {
                 refreshControl={
                     <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />
                 }
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={renderFooter}
             />
              <DdidModal
                  visible={isModalVisible}
@@ -203,38 +260,66 @@ const UserList = () => {
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+    const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [userSearchQuery, setUserSearchQuery] = useState<string>(''); // State for user search
+    const [userSearchQuery, setUserSearchQuery] = useState<string>('');
     const { getToken } = useAuth();
 
-    const fetchUsers = useCallback(async () => {
-        console.log('[AdminUsers] Fetching all users data...');
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const limit = 15; // Maybe more users per page
+
+    const fetchUsers = useCallback(async (page = 1, refreshing = false) => {
+        console.log(`[AdminUsers] Fetching users page ${page}...`);
         setError(null);
+        if (page === 1) setIsLoading(true);
+        else setIsLoadingMore(true);
+
         try {
             const token = await getToken();
             if (!token) throw new Error("User not authenticated");
-            setIsLoading(true);
-            const response = await axios.get<UserData[]>(`${BASE_URL}/api/admin/all-users`, { // Expecting flat array now
-                headers: { Authorization: `Bearer ${token}` }
-            });
-             setUsers(response.data || []); // Use response.data directly
+
+            const response = await axios.get<PaginatedResponse<UserData>>(
+                `${BASE_URL}/api/admin/all-users?page=${page}&limit=${limit}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            const { data, currentPage: fetchedPage, totalPages: fetchedTotalPages } = response.data;
+
+            setUsers(prev => (page === 1 || refreshing ? data : [...prev, ...data]));
+            setCurrentPage(fetchedPage);
+            setTotalPages(fetchedTotalPages);
+
         } catch (err: any) {
              console.error("[AdminUsers] Error fetching data:", err);
             let errorMessage = "Failed to fetch user data.";
             if (err.response) { errorMessage = err.response.data?.message || errorMessage; }
             setError(errorMessage);
         } finally {
-            setIsLoading(false);
+             if (page === 1) setIsLoading(false);
+             else setIsLoadingMore(false);
+             if (refreshing) setIsRefreshing(false);
         }
-    }, [getToken]);
+    }, [getToken, limit]);
 
-    useEffect(() => { fetchUsers(); }, []);
+    useEffect(() => { fetchUsers(1); }, [fetchUsers]); // Fetch initial page
 
     const onRefresh = useCallback(async () => {
         setIsRefreshing(true);
-        await fetchUsers();
-        setIsRefreshing(false);
+        setCurrentPage(1); // Reset page on refresh
+        setTotalPages(1);
+        await fetchUsers(1, true);
+        // setIsRefreshing(false); // Handled in fetchUsers finally block
     }, [fetchUsers]);
+
+    const handleLoadMore = useCallback(() => {
+        if (!isLoadingMore && currentPage < totalPages) {
+            console.log('[AdminUsers] Loading more users...');
+            fetchUsers(currentPage + 1);
+        }
+    }, [isLoadingMore, currentPage, totalPages, fetchUsers]);
 
     // Filter users based on search query
     const processedUsers = useMemo(() => {
@@ -275,6 +360,11 @@ const UserList = () => {
         );
     };
 
+    const renderFooter = () => {
+        if (!isLoadingMore) return null;
+        return <ActivityIndicator style={{ marginVertical: 20 }} size="large" color={COLORS.primary} />;
+    };
+
     if (isLoading && !isRefreshing) return <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />;
     if (error) return <Text style={styles.errorText}>{error}</Text>;
 
@@ -303,6 +393,9 @@ const UserList = () => {
                 refreshControl={
                     <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />
                 }
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={renderFooter}
             />
         </View>
     );
@@ -325,8 +418,9 @@ const AdminDashboardScreen = () => {
                     tabBarStyle: { backgroundColor: 'white' },
                  }}
              >
-                 <Tab.Screen name="All Inspections" component={InspectionList} />
-                 <Tab.Screen name="All Users" component={UserList} />
+                 <Tab.Screen name="Inspections" component={InspectionList} />
+                 <Tab.Screen name="Users" component={UserList} />
+                 <Tab.Screen name="Settings" component={AdminSettingsTab} />
              </Tab.Navigator>
         </SafeAreaView>
     );
