@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@react-navigation/material-top-tabs": "^7.2.10",
+    "expo-image-manipulator": "^13.1.5",
     "react-native-pager": "^0.0.3",
     "react-native-tab-view": "^4.0.10"
   }
