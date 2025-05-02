@@ -10,6 +10,7 @@ import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { BASE_URL } from '../../src/config/api'; // Import centralized BASE_URL
 import { COLORS } from '../../src/styles/colors'; // Corrected import path
+import AnalysisModal from '../../src/components/AnalysisModal'; // Import the new modal
 
 // --- Define Base URL (Platform Specific) ---
 // const YOUR_COMPUTER_IP_ADDRESS = '<YOUR-COMPUTER-IP-ADDRESS>'; // Removed
@@ -34,6 +35,7 @@ export default function NewInspectionScreen() {
     const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
     const [isGeneratingFinal, setIsGeneratingFinal] = useState<boolean>(false);
     const [analysisText, setAnalysisText] = useState<string | null>(null);
+    const [editedAnalysisText, setEditedAnalysisText] = useState<string>(''); // State for edited analysis
     const [showGenerateFinalButton, setShowGenerateFinalButton] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -46,6 +48,7 @@ export default function NewInspectionScreen() {
     const [isEditingDdid, setIsEditingDdid] = useState<boolean>(false);
     const [editedDdid, setEditedDdid] = useState<string>('');
     const [inspectionId, setInspectionId] = useState<string | null>(null); // State for the saved inspection ID
+    const [showAnalysisModal, setShowAnalysisModal] = useState<boolean>(false); // State for modal visibility
 
     // --- Fetch user state from Clerk metadata ---
     useEffect(() => {
@@ -98,21 +101,23 @@ export default function NewInspectionScreen() {
     const takePhoto = async () => {
         if (Platform.OS === 'web') return; // Should not be callable on web
 
+        // Check/Request Permissions
         const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-
         if (cameraPermission.status !== 'granted') {
             Alert.alert('Permission required', 'Camera permission is needed to take a photo.');
             return;
         }
 
         try {
+            console.log('[takePhoto] Launching camera...');
             let result = await ImagePicker.launchCameraAsync({
                 allowsEditing: true,
                 aspect: [1, 1],
-                quality: 0.8,
-                base64: true,
+                quality: 0.8, // Use a reasonable quality
+                base64: false, // Don't need base64 yet, manipulator will handle it
             });
-            handleImageResult(result);
+            // Pass result to the handler which includes manipulation
+            await handleImageResult(result); // Pass result to the handler
         } catch (error) {
             handleImageError(error);
         }
@@ -239,8 +244,10 @@ export default function NewInspectionScreen() {
             });
 
             if (analysisResponse.data && analysisResponse.data.analysis) {
-                setAnalysisText(analysisResponse.data.analysis);
-                setShowGenerateFinalButton(true);
+                const initialAnalysis = analysisResponse.data.analysis;
+                setAnalysisText(initialAnalysis);
+                setEditedAnalysisText(initialAnalysis); // Initialize editor state
+                setShowAnalysisModal(true); // <--- Show the analysis modal
             } else {
                 throw new Error("Invalid response structure from analysis server.");
             }
@@ -257,14 +264,14 @@ export default function NewInspectionScreen() {
     }, [imageBase64, description, userState, getToken]);
 
     // --- Handler for Final Statement Generation & Save ---
-    const handleGenerateFinalStatement = useCallback(async () => {
+    const handleGenerateFinalStatement = useCallback(async (analysisToUse: string) => {
         console.log("[handleGenerateFinalStatement] Function called");
-        if (!imageBase64 || !description || !analysisText) { // Might use analysisText in prompt later
-            Alert.alert("Missing Information", "Analysis must be completed first.");
+        if (!imageBase64 || !description || !analysisToUse) {
+            Alert.alert("Missing Information", "Image, description, and analysis are required.");
             return;
         }
         setIsGeneratingFinal(true);
-        setShowAnalyzingPopup(true); // Show popup for final generation
+        setShowAnalyzingPopup(true);
         setError(null);
         let cloudinaryUrl: string | null = null;
 
@@ -286,8 +293,7 @@ export default function NewInspectionScreen() {
             const ddidResponse = await axios.post(`${BASE_URL}/api/generate-ddid`, {
                 imageBase64, // Send image again for context
                 description, // Original description
-                // Optionally pass analysisText if the backend prompt uses it
-                // analysis: analysisText,
+                analysisText: analysisToUse, // <-- Send the analysis to use
                 userState,
                 imageUrl: cloudinaryUrl, // Provide URL for saving
             }, {
@@ -303,6 +309,7 @@ export default function NewInspectionScreen() {
                 setInspectionId(receivedInspectionId); // <-- Store the ID
                 setShowGenerateFinalButton(false);
                 setAnalysisText(null);
+                setShowAnalysisModal(false); // Ensure analysis modal is closed
             } else {
                 // Handle cases where ID might be missing even if DDID exists (e.g., DB error on backend)
                 if(ddidResponse.data && ddidResponse.data.ddid) {
@@ -316,6 +323,7 @@ export default function NewInspectionScreen() {
                 setInspectionId(null); // Ensure ID is null if something went wrong
                 setShowGenerateFinalButton(false);
                 setAnalysisText(null);
+                setShowAnalysisModal(false); // Ensure analysis modal is closed
             }
 
         } catch (err: any) {
@@ -326,8 +334,17 @@ export default function NewInspectionScreen() {
         } finally {
             setIsGeneratingFinal(false);
             setShowAnalyzingPopup(false);
+            setAnalysisText(null); // Clear intermediate analysis state
+            setEditedAnalysisText('');
+            setShowAnalysisModal(false); // Ensure analysis modal is closed
         }
-    }, [imageBase64, description, userState, analysisText, getToken, uploadImageToCloudinary]);
+    }, [imageBase64, description, userState, getToken, uploadImageToCloudinary]);
+
+    // Callback for when analysis is saved in modal
+    const handleAnalysisSave = (savedText: string) => {
+        setEditedAnalysisText(savedText); // Update parent state if needed, though modal tracks its own
+        console.log("Analysis saved locally in modal.");
+    };
 
     async function startRecording() {
         console.log('[Audio] Requesting permissions...');
@@ -625,7 +642,7 @@ export default function NewInspectionScreen() {
         // Reset edit state and call the final generation function again
         setIsEditingDdid(false);
         setEditedDdid('');
-        handleGenerateFinalStatement();
+        handleGenerateFinalStatement(analysisText || '');
     };
     // --- End Edit/Save/Regenerate Handlers ---
 
@@ -675,7 +692,7 @@ export default function NewInspectionScreen() {
                         </TouchableOpacity>
                         {!imageUri && (
                              <TouchableOpacity style={styles.cameraButton} onPress={takePhoto}>
-                                 <Camera size={24} color={COLORS.white} style={styles.cameraIcon}/>
+                                 <Camera size={24} color={COLORS.white} />
                              </TouchableOpacity>
                         )}
                     </View>
@@ -718,9 +735,9 @@ export default function NewInspectionScreen() {
 
                 {/* --- Button Section --- */} 
                 {/* Initial State: Show Analyze Button */} 
-                {!analysisText && !generatedDdid && !isAnalyzing && (
+                {!analysisText && !generatedDdid && !isAnalyzing && !isGeneratingFinal && (
                     <TouchableOpacity
-                        style={[styles.button, styles.analyzeButton, (!imageUri || !description || isAnalyzing) && styles.buttonDisabled]}
+                        style={[styles.button, styles.analyzeButton, (!imageUri || !description) && styles.buttonDisabled, Platform.OS === 'web' && styles.desktopButton ]}
                         onPress={handleAnalyzeDefect}
                         disabled={!imageUri || !description || isAnalyzing}
                     >
@@ -743,7 +760,7 @@ export default function NewInspectionScreen() {
                  {analysisText && showGenerateFinalButton && !isGeneratingFinal && !generatedDdid && (
                      <TouchableOpacity
                          style={[styles.button, styles.generateFinalButton]}
-                         onPress={handleGenerateFinalStatement}
+                         onPress={() => handleGenerateFinalStatement(analysisText)}
                      >
                          {/* Use Send or different icon? */} 
                          <Send size={18} color="#fff" style={{marginRight: 8}} />
@@ -801,11 +818,23 @@ export default function NewInspectionScreen() {
 
                 {error && <Text style={styles.errorText}>{error}</Text>}
             </KeyboardAvoidingView>
+
+            {/* Analysis Modal */}
+            <AnalysisModal
+                visible={showAnalysisModal}
+                analysisText={analysisText} // Pass the initial analysis
+                onClose={() => setShowAnalysisModal(false)}
+                onEditSave={handleAnalysisSave} // Handle saving edited analysis locally
+                onGenerateStatement={handleGenerateFinalStatement} // Trigger final generation
+            />
+
+            {/* Final Statement Modal */}
             <DdidModal
                 visible={showDdidModal}
                 onClose={() => setShowDdidModal(false)}
-                ddidText={generatedDdid || ''}
-             />
+                ddidText={generatedDdid || ''} // Show final generated/edited statement
+                // ... other props ...
+            />
             <Modal
                 transparent={true}
                 animationType="fade"
@@ -932,13 +961,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderRadius: 8,
         marginHorizontal: '1%',
+        width: '100%',
+        maxWidth: 500, // Keep max width for centering
+        alignSelf: 'center',
+        marginBottom: 15,
     },
     buttonHalf: {
-        flex: 1, // Takes half space in initial container
+        flex: 1,
+        width: undefined,
+        maxWidth: '48%',
+        marginBottom: 0,
     },
     buttonThird: {
-        flex: 1, // Takes third space in post-gen container
-        paddingHorizontal: 10, // Adjust padding if needed
+        flex: 1,
+        width: undefined,
+        paddingHorizontal: 10,
+        marginBottom: 0,
     },
     buttonText: {
         color: '#fff',
@@ -1097,5 +1135,8 @@ const styles = StyleSheet.create({
     },
     generateFinalButton: {
         backgroundColor: COLORS.success, // Green for final step?
+    },
+    desktopButton: {
+        maxWidth: 300,
     },
 });

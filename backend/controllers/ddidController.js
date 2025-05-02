@@ -71,99 +71,94 @@ Generate the analysis (Describe, Determine, Implication only).
 
 // Controller for FINAL DDID generation AND saving (Modified to accept imageUrl)
 const generateDdidController = async (req, res) => {
-    const { imageBase64, description, userState, imageUrl } = req.body;
-    const userId = req.auth.userId; // Get userId from auth middleware
+    const { imageBase64, description, userState, imageUrl, analysisText } = req.body;
+    const userId = req.auth.userId;
 
-    // Check required fields for final generation AND saving
-    if (!description || !userState || !userId || !imageUrl) {
-        return res.status(400).json({ message: 'Missing required fields for final statement generation or saving.' });
+    // Check required fields
+    if (!description || !userState || !userId || !imageUrl || !analysisText) {
+        return res.status(400).json({ message: 'Missing required fields (desc, state, user, image url, analysis).' });
     }
-    // imageBase64 is still needed for the OpenAI call
     if (!imageBase64) {
          return res.status(400).json({ message: 'Missing image data for final analysis.' });
     }
 
-    // Full prompt including Direct guidelines
+    // Updated prompt to use provided analysis and only generate the Direct section
     const finalPrompt = `
-You are an AI assistant creating statement statements based on the Describe, Determine, Implication, Direct (DDID) model.
+You are an AI assistant generating the final "Direct:" recommendation for a DDID statement.
+You will be given the preliminary analysis (Describe, Determine, Implication) and context (inspector notes, image, state).
+Your task is ONLY to generate the "Direct:" line based on the provided analysis and the Recommendation Guidelines.
 
-Format:
-Describe: [Directly state the observation, e.g., "Water intrusion observed..."]
-Determine: [Identify the specific issue.]
-Implication: [Explain the potential consequences neutrally and informatively, without causing undue alarm.]
-Direct: [Provide ONE clear recommendation for the next step based *only* on the guidelines below.]
+**Provided Analysis:**
+${analysisText}
 
-Recommendation Guidelines for the "Direct" section:
-1.  **Structural Defects:** If the defect involves structural components (e.g., foundations, load-bearing walls, beams, columns, framing, roof structure/trusses), recommend: "Recommend engaging a licensed structural engineer to evaluate this condition and provide repair recommendations."
-2.  **New Builds/Construction:** If the description mentions "new build", "new construction", or similar terms indicating a recently built property, recommend: "Recommend that the builder further evaluate this condition."
-3.  **Multiple Related Defects:** If the description clearly lists *multiple distinct defects* that fall under the *same specific trade* (e.g., several electrical issues like faulty outlets and bad wiring in one area, multiple plumbing leaks), recommend engaging a licensed professional for that trade: "Recommend engaging a licensed [Trade Professional, e.g., Electrician, Plumber] to evaluate and repair these conditions."
-4.  **Default Recommendation:** For all other defects not covered by the above, recommend: "Recommend engaging a qualified licensed contractor to repair this condition."
-    - Example: If the description is "The trap under the sink is leaking.", the Direct section should be: "Recommend engaging a qualified licensed contractor to repair the leaking trap under the sink."
+**Recommendation Guidelines:**
+1.  **Structural Defects:** If the provided analysis mentions structural components (foundations, load-bearing walls, beams, columns, framing, roof structure/trusses), recommend: "Recommend engaging a licensed structural engineer to evaluate this condition and provide repair recommendations."
+2.  **New Builds/Construction:** If the original inspector notes mentioned "new build", "new construction", etc., recommend: "Recommend that the builder further evaluate this condition."
+3.  **Multiple Related Defects:** If the provided analysis describes multiple distinct defects of the same trade (e.g., multiple electrical issues, multiple plumbing leaks), recommend: "Recommend engaging a licensed [Trade Professional, e.g., Electrician, Plumber] to evaluate and repair these conditions."
+4.  **Default Recommendation:** For all other defects based on the provided analysis, recommend: "Recommend engaging a qualified licensed contractor to repair this condition."
 
-General Instructions:
-- Analyze the inspector's notes and the provided image.
-- Combine visual information and text description for the "Describe" section.
-- Ensure the tone is precise, objective, and informative, avoiding alarming language.
-- **Do not** reference building codes, safety standards, regulations, or citations.
-- **Do not** use any Markdown formatting (like ** for bold). Write the entire response in plain text.
-- Apply the Recommendation Guidelines strictly to generate the single statement for the "Direct:" section.
+**Original Inspector Notes (for context only, especially for New Builds):**
+${description}
 
-Inspector Data:
-- Location (State): ${userState}
-- Notes: ${description}
-- Image: <attached>
+**State (for context only):** ${userState}
 
-Generate the DDID statement now.
+**Instructions:**
+- Based *only* on the **Provided Analysis** and the **Recommendation Guidelines**, determine the single correct recommendation.
+- Output *only* the full "Direct:" line, starting with "Direct: Recommend engaging...".
+- Do NOT include the Describe, Determine, or Implication sections again.
+- Do NOT use Markdown formatting.
+
+Generate the "Direct:" line now.
 `;
 
-    console.log('[generateDdidController] Requesting final DDID from OpenAI...');
-    let ddidStatement = null;
+    console.log('[generateDdidController] Requesting Direct recommendation from OpenAI...');
+    let directRecommendation = null;
+    let finalDdidStatement = null;
     try {
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
+            model: 'gpt-4o', // Or a faster/cheaper model if only generating the direct line?
             messages: [
                  {
                      role: 'user',
-                     content: [
-                         { type: 'text', text: finalPrompt },
-                         {
-                             type: 'image_url',
-                             image_url: {
-                                 url: `data:image/jpeg;base64,${imageBase64}`,
-                             },
-                         },
-                     ],
+                     // Only send the prompt now, image context was used for analysis
+                     content: finalPrompt
                  },
              ],
-            max_tokens: 600,
+            max_tokens: 150, // Reduced tokens needed for just the Direct line
         });
-        ddidStatement = response.choices[0].message.content;
-        console.log('[generateDdidController] Final DDID received from OpenAI.');
+        directRecommendation = response.choices[0].message.content;
+        console.log('[generateDdidController] Direct recommendation received:', directRecommendation);
+
+        // Combine the provided analysis with the generated recommendation
+        // Ensure directRecommendation starts with "Direct: " or add it
+        const formattedDirect = directRecommendation.trim().startsWith('Direct:') ? directRecommendation.trim() : `Direct: ${directRecommendation.trim()}`;
+        finalDdidStatement = `${analysisText.trim()}\n${formattedDirect}`;
+        console.log('[generateDdidController] Combined final DDID:', finalDdidStatement);
 
         // --- Save Inspection to Database --- 
         console.log('[generateDdidController] Saving inspection to database...');
-        const { Pool } = require('pg'); // Ensure Pool is required
+        const { Pool } = require('pg');
         const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-        const insertQuery = 'INSERT INTO inspections (user_id, description, ddid, image_url, state) VALUES ($1, $2, $3, $4, $5) RETURNING id'; // Return the ID
-        const values = [userId, description, ddidStatement, imageUrl, userState];
+        const insertQuery = 'INSERT INTO inspections (user_id, description, ddid, image_url, state) VALUES ($1, $2, $3, $4, $5) RETURNING id';
+        const values = [userId, description, finalDdidStatement, imageUrl, userState];
         const result = await pool.query(insertQuery, values);
         const newInspectionId = result.rows[0].id;
         console.log('[generateDdidController] Inspection saved successfully:', newInspectionId);
         // ----------------------------------
 
         // Return the final DDID and the new inspection ID
-        return res.json({ ddid: ddidStatement, inspectionId: newInspectionId });
+        return res.json({ ddid: finalDdidStatement, inspectionId: newInspectionId });
 
     } catch (error) {
         console.error('[generateDdidController] Error:', error);
         const message = error.response?.data?.message || error.message || 'Failed to generate final DDID or save inspection.';
         // Check if it was an OpenAI error or DB error
-        if (!ddidStatement && error.response) {
+        if (!directRecommendation && error.response) {
             // Likely OpenAI API error
             return res.status(502).json({ message: `OpenAI Error: ${message}` });
-        } else if (ddidStatement && !error.response) {
+        } else if (directRecommendation && !error.response) {
             // Likely DB Save Error (after getting OpenAI response)
-            return res.status(500).json({ message: `Database Save Error: ${message}`, ddid: ddidStatement, inspectionId: null });
+            return res.status(500).json({ message: `Database Save Error: ${message}`, ddid: finalDdidStatement, inspectionId: null });
         } else {
              // Other errors
              return res.status(500).json({ message });
