@@ -768,54 +768,6 @@ export default function NewInspectionScreen() {
                      </TouchableOpacity>
                  )}
 
-                {/* Post-Final Generation State: Show Edit/Regenerate/View */} 
-                {generatedDdid && !isAnalyzing && !isGeneratingFinal && !isUploading && (
-                    <View style={styles.postGenButtonContainer}>
-                        {isEditingDdid ? (
-                             <>
-                                <TouchableOpacity
-                                    style={[styles.button, styles.saveEditButton, styles.buttonThird]}
-                                    onPress={handleSaveEditedStatement}
-                                >
-                                    <Save size={18} color="#fff" />
-                                    <Text style={[styles.buttonText, {marginLeft: 8}]}>Save Edit</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.button, styles.cancelEditButton, styles.buttonThird]}
-                                    onPress={() => setIsEditingDdid(false)}
-                                >
-                                    <X size={18} color={COLORS.darkText} />
-                                    <Text style={[styles.buttonTextSecondary, {marginLeft: 8}]}>Cancel</Text>
-                                </TouchableOpacity>
-                            </>
-                         ) : (
-                             <>
-                                 <TouchableOpacity
-                                     style={[styles.button, styles.editButton, styles.buttonThird]}
-                                     onPress={handleEditStatement}
-                                 >
-                                     <Edit size={18} color={COLORS.primary} />
-                                     <Text style={[styles.buttonTextAction, {marginLeft: 8}]}>Edit</Text>
-                                 </TouchableOpacity>
-                                 <TouchableOpacity
-                                     style={[styles.button, styles.regenerateButton, styles.buttonThird]}
-                                     onPress={handleRegenerateStatement}
-                                 >
-                                      <RotateCcw size={18} color={COLORS.primary} />
-                                     <Text style={[styles.buttonTextAction, {marginLeft: 8}]}>Regenerate</Text>
-                                 </TouchableOpacity>
-                                 <TouchableOpacity
-                                     style={[styles.button, styles.viewButton, styles.buttonThird]}
-                                     onPress={() => setShowDdidModal(true)}
-                                 >
-                                      <Eye size={18} color={COLORS.primary} />
-                                     <Text style={[styles.buttonTextAction, {marginLeft: 8}]}>View</Text>
-                                 </TouchableOpacity>
-                             </>
-                         )}
-                    </View>
-                )}
-
                 {error && <Text style={styles.errorText}>{error}</Text>}
             </KeyboardAvoidingView>
 
@@ -1046,43 +998,13 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         marginBottom: 15,
     },
-    postGenButtonContainer: { // For Edit/Save/Regenerate
-        flexDirection: 'row',
-        justifyContent: 'space-around', // Space buttons evenly
-        width: '100%',
-        maxWidth: 500,
-        alignSelf: 'center',
-        marginBottom: 15,
-    },
-    editButton: {
-        backgroundColor: '#e9ecef',
-        borderColor: COLORS.primary,
-        borderWidth: 1,
-    },
-    saveEditButton: {
-        backgroundColor: COLORS.success, // Green for save
-    },
-    cancelEditButton: {
-        backgroundColor: '#e9ecef',
-        borderColor: '#ced4da',
-        borderWidth: 1,
-    },
-    regenerateButton: {
-        backgroundColor: '#e9ecef',
-        borderColor: COLORS.primary,
-        borderWidth: 1,
-    },
-    viewButton: {
-        backgroundColor: '#e9ecef',
-        borderColor: COLORS.primary,
-        borderWidth: 1,
-    },
-    buttonTextAction: { // For Edit, Regenerate, View buttons
-        color: COLORS.primary,
-        fontSize: 14, // Smaller text for smaller buttons
-        fontWeight: '600',
-        textAlign: 'center',
-    },
+    postGenButtonContainer: { /* Keep if needed elsewhere, otherwise remove */ },
+    editButton: { /* Keep if needed elsewhere, otherwise remove */ },
+    saveEditButton: { /* Keep if needed elsewhere, otherwise remove */ },
+    cancelEditButton: { /* Keep if needed elsewhere, otherwise remove */ },
+    regenerateButton: { /* Keep if needed elsewhere, otherwise remove */ },
+    viewButton: { /* Keep if needed elsewhere, otherwise remove */ },
+    buttonTextAction: { /* Keep if needed elsewhere, otherwise remove */ },
     cameraButton: {
         position: 'absolute',
         bottom: 10,

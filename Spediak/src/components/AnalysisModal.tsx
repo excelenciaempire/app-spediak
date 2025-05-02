@@ -153,13 +153,23 @@ const styles = StyleSheet.create({
     },
     modalFooter: { width: '100%', flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 15, paddingHorizontal: 10, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: '#f8f9fa' },
     button: { flex: 1, flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 15, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5 },
-    editButton: { backgroundColor: '#e9ecef', borderColor: COLORS.primary, borderWidth: 1 },
-    generateButton: { backgroundColor: COLORS.success },
+    editButton: {
+        backgroundColor: '#e9ecef',
+        borderColor: '#ced4da',
+        borderWidth: 1,
+    },
+    generateButton: {
+        backgroundColor: COLORS.primary,
+    },
     saveButton: { backgroundColor: COLORS.primary },
     cancelButton: { backgroundColor: '#e9ecef', borderColor: '#ced4da', borderWidth: 1 },
     buttonText: { color: 'white', fontWeight: 'bold', fontSize: 14 },
     buttonTextSecondary: { color: COLORS.darkText, fontWeight: 'bold', fontSize: 14 },
-    buttonTextAction: { color: COLORS.primary, fontWeight: 'bold', fontSize: 14 },
+    buttonTextAction: {
+        color: COLORS.darkText,
+        fontWeight: 'bold',
+        fontSize: 14
+    },
     buttonIcon: { marginRight: 8 },
 });
 
