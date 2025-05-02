@@ -8,15 +8,16 @@ const isAdmin = (req, res, next) => {
     return res.status(401).json({ message: 'Authentication required.' });
   }
 
-  const userRole = req.auth.sessionClaims?.metadata?.role;
+  // Check the new claim name from the JWT template
+  const userRole = req.auth.sessionClaims?.user_role;
 
   if (userRole !== 'admin') {
-    console.warn(`[isAdmin Middleware] Access denied for user ${req.auth.userId}. Role: ${userRole}`);
+    console.warn(`[isAdmin Middleware] Access denied for user ${req.auth.userId}. Role found in token: ${userRole}`);
     return res.status(403).json({ message: 'Forbidden: Admin privileges required.' });
   }
 
   // User is authenticated and is an admin
-  console.log(`[isAdmin Middleware] Access granted for admin user ${req.auth.userId}`);
+  console.log(`[isAdmin Middleware] Access granted for admin user ${req.auth.userId} with role: ${userRole}`);
   next();
 };
 
