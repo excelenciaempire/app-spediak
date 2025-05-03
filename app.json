@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Spediak",
+    "slug": "spediak-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./Spediak/assets/icon.png",
+    "scheme": "spediak",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./Spediak/assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./Spediak/assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./Spediak/assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    },
+    "owner": "excelenciaempire"
+  }
+}
