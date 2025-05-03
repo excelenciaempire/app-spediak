@@ -25,6 +25,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState(''); // Assuming full name is first + last
+  const [username, setUsername] = useState(''); // Added username state
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -33,10 +34,34 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [code, setCode] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
+  const [isPasswordValid, setIsPasswordValid] = useState(true);
+  const [passwordError, setPasswordError] = useState('');
+
+  // Password Validation Function
+  const validatePassword = (text: string) => {
+    if (text.length === 0) {
+      // Reset validation if field is empty
+      setIsPasswordValid(true);
+      setPasswordError('');
+    } else if (text.length < 10) {
+      setIsPasswordValid(false);
+      setPasswordError('Password must be at least 10 characters long.');
+    } else {
+      setIsPasswordValid(true);
+      setPasswordError('');
+    }
+    setPassword(text);
+  };
 
   // Start the sign up process.
   const onSignUpPress = async () => {
     if (!isLoaded) {
+      return;
+    }
+    // Validate password first
+    validatePassword(password); // Re-validate on submit just in case
+    if (!isPasswordValid) {
+        Alert.alert('Error', passwordError);
       return;
     }
     if (password !== confirmPassword) {
@@ -49,6 +74,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
       await signUp.create({
         firstName,
         lastName,
+        username, // Added username
         emailAddress,
         password,
       });
@@ -132,6 +158,17 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
                       onChangeText={setLastName}
                   />
               </View>
+               <View style={styles.inputContainer}>
+                  <Ionicons name="at-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
+                  <TextInput
+                      style={styles.input}
+                      placeholder="Username"
+                      placeholderTextColor={COLORS.darkText}
+                      value={username}
+                      autoCapitalize="none"
+                      onChangeText={setUsername}
+                  />
+              </View>
               <View style={styles.inputContainer}>
                   <Ionicons name="mail-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
                   <TextInput
@@ -147,17 +184,18 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               <View style={styles.inputContainer}>
                    <Ionicons name="lock-closed-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
                   <TextInput
-                  style={styles.input}
+                    style={[styles.input, !isPasswordValid && styles.inputError]}
                   placeholder="Password"
                   placeholderTextColor={COLORS.darkText}
                   value={password}
                   secureTextEntry={!passwordVisible}
-                  onChangeText={setPassword}
+                    onChangeText={validatePassword}
                   />
                    <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)} style={styles.eyeIconContainer}>
                       <Ionicons name={passwordVisible ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.darkText} />
                   </TouchableOpacity>
               </View>
+              {!isPasswordValid && <Text style={styles.errorText}>{passwordError}</Text>}
                <View style={styles.inputContainer}>
                    <Ionicons name="lock-closed-outline" size={20} color={COLORS.darkText} style={styles.inputIcon} />
                   <TextInput
@@ -262,6 +300,17 @@ const styles = StyleSheet.create({
     height: 50,
     color: COLORS.darkText,
     fontSize: 16,
+  },
+  inputError: {
+      borderColor: 'red',
+      borderWidth: 1,
+  },
+  errorText: {
+      color: 'red',
+      fontSize: 12,
+      marginBottom: 10,
+      marginLeft: 15,
+      alignSelf: 'flex-start',
   },
   eyeIconContainer: {
      padding: 5,

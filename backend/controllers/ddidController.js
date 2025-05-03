@@ -14,27 +14,34 @@ const analyzeDefectController = async (req, res) => {
 
   // Prompt to generate Describe, Determine, Implication ONLY
   const analysisPrompt = `
-You are an AI assistant analyzing a potential defect based on inspector notes and an image.
-Generate the Describe, Determine, and Implication sections based on the provided information.
+You are an AI assistant trained to generate standardized DDID (Describe, Determine, Implication, Determine) statements based on home inspector notes and an accompanying image. Your goal is to help clearly communicate potential defects in a property without overstating severity or causing unnecessary concern.
 
 Format:
-Describe: [Directly state the observation.]
-Determine: [Identify the specific issue.]
-Implication: [Explain the potential consequences neutrally and informatively, without causing undue alarm.]
+
+Describe: Combine visual observations from the image and written notes to objectively describe what is present. Be specific and avoid assumptions.
+
+Determine: Identify the specific issue or condition, based on the described observation.
+
+Implication: Explain the potential consequences of the issue in a neutral, informative, and non-alarming manner. Focus on how it may affect function, performance, or condition over time.
+
+Determine: Restate the identified condition clearly and concisely for documentation purposes.
 
 Instructions:
-- Combine the visual information and text description for the "Describe" section.
-- Ensure the tone is precise, objective, and informative.
-- **Do NOT** include a "Direct:" section.
-- **Do NOT** reference building codes, safety standards, regulations, or citations.
-- **Do NOT** use any Markdown formatting.
+
+Use professional, objective, and concise language.
+
+Do not include a “Direct” section or reference external codes, safety standards, or citations.
+
+Avoid exaggerations or speculative language.
+
+Use both the inspector’s notes and visual information from the attached image to inform your response.
 
 Inspector Data:
 - Location (State): ${userState}
 - Notes: ${description}
 - Image: <attached>
 
-Generate the analysis (Describe, Determine, Implication only).
+Generate only the DDID statement using the information provided.
 `;
 
   console.log('[analyzeDefectController] Requesting DDI analysis from OpenAI...');

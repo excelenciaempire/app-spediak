@@ -80,7 +80,7 @@ const DdidModal: React.FC<DdidModalProps> = ({
                             </View>
                         )}
                         <View style={styles.sectionContainer}>
-                             <Text style={styles.sectionTitle}>Generated DDID Report:</Text>
+                             <Text style={styles.sectionTitle}>Generated Statement:</Text>
                              <Markdown style={markdownStyles}>
                                 {ddidText || 'No content available.'}
                              </Markdown>

@@ -502,7 +502,7 @@ export default function NewInspectionScreen() {
         setEditedDdid('');
         setInspectionId(null); // Reset inspection ID
         if (recording) {
-             recording.stopAndUnloadAsync().catch(e => console.error("Error stopping recording on reset:", e));
+             recording.stopAndUnloadAsync().catch((e: any) => console.error("Error stopping recording on reset:", e));
         }
         setRecording(null);
         setIsRecording(false);
@@ -517,12 +517,12 @@ export default function NewInspectionScreen() {
 
                 try {
                     if (recording.getStatusAsync) {
-                        recording.getStatusAsync().then(status => {
+                        recording.getStatusAsync().then((status: any) => {
                             if (status.isRecording || !status.isDoneRecording) {
                                 console.log('Recording still active, stopping now...');
                                 recording.stopAndUnloadAsync()
                                     .then(() => console.log("Recording stopped safely on unmount"))
-                                    .catch(e => console.error("Error stopping recording on unmount:", e));
+                                    .catch((e: any) => console.error("Error stopping recording on unmount:", e));
                             } else {
                                 console.log("Recording already stopped or unloaded.");
                             }
