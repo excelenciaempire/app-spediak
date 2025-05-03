@@ -1,17 +1,14 @@
 {
-  "dependencies": {
-    "@react-navigation/material-top-tabs": "^7.2.10",
-    "expo-image-manipulator": "^13.1.5",
-    "react-native-pager": "^0.0.3",
-    "react-native-tab-view": "^4.0.10",
-    "react-dom": "19.0.0",
-    "react-native-web": "^0.20.0",
-    "@expo/metro-runtime": "~5.0.4",
-    "expo-router": "~5.0.5",
-    "expo-secure-store": "~14.2.3"
+  "name": "spediak-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd Spediak && npm run dev",
+    "start": "cd Spediak && npx expo start --web",
+    "build": "cd Spediak && npm run build"
   },
-  "devDependencies": {
-    "typescript": "~5.8.3",
-    "@types/react": "~19.0.10"
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }
