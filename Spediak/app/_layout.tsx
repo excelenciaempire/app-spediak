@@ -38,9 +38,9 @@ const InitialLayout = () => {
     console.log("[Layout] In tabs group?", inTabsGroup);
 
     if (isSignedIn && !inTabsGroup) {
-      console.log("[Layout] User signed in, NOT in tabs. Redirecting to /tabs...");
-      // Redirect authenticated users to the default screen of the tabs group
-      router.replace("/tabs");
+      console.log("[Layout] User signed in, NOT in tabs. Redirecting to /tabs/...");
+      // Explicitly redirect to the index route of the tabs group
+      router.replace("/tabs/");
     } else if (!isSignedIn && inTabsGroup) {
       console.log("[Layout] User NOT signed in, IS in tabs. Redirecting to /...");
       // Redirect unauthenticated users away from tabs
