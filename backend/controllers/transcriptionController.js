@@ -29,7 +29,7 @@ const transcribeAudioController = async (req, res) => {
     const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? '';
     console.log("Transcript:", transcript);
 
-    return res.status(200).json({ transcript });
+    return res.status(200).json({ transcription: transcript });
   } catch (err) {
     console.error('Transcription failed:', err);
     return res.status(500).json({ message: 'Transcription failed', details: err.message });
