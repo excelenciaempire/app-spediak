@@ -27,11 +27,11 @@ module.exports = {
       "output": "static"
     },
     "extra": {
-      "clerkPublishableKey": "pk_test_cHJldHR5LWNyYXdkYWQtMTAuY2xlcmsuYWNjb3VudHMuZGV2JA",
-      "apiUrl": process.env.EXPO_PUBLIC_API_URL,
+      "clerkPublishableKey": process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
+      "apiUrl": "https://app-spediak.onrender.com",
       "eas": {
         "projectId": "733c67f6-d35b-434e-bd51-1b9e723e2135"
-    }
+      }
     },
     "plugins": [
       "expo-router",

@@ -80,6 +80,8 @@ const InspectionList: React.FC = () => {
 
             const { data, currentPage: fetchedPage, totalPages: fetchedTotalPages } = response.data;
 
+            console.log("[AdminInspections] Raw data check:", JSON.stringify(response.data, null, 2)); 
+
             setInspections(prev => (page === 1 || refreshing ? data : [...prev, ...data]));
             setCurrentPage(fetchedPage);
             setTotalPages(fetchedTotalPages);

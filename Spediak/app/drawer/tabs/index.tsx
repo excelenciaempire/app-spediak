@@ -11,15 +11,18 @@ import {
     Alert,
     Platform 
 } from 'react-native';
-import { useUser } from '@clerk/clerk-expo';
+import { useUser, useAuth } from '@clerk/clerk-expo';
 import * as ImagePicker from 'expo-image-picker';
 import { ImagePlus, Mic, RefreshCcw, BrainCircuit } from 'lucide-react-native'; // Or other appropriate icons
 import { COLORS } from '../../../src/styles/colors'; // Assuming colors are defined here
 import { Audio } from 'expo-av'; // Import Expo AV
 import * as FileSystem from 'expo-file-system'; // Import Expo File System
+import axios from 'axios'; // <-- Import axios
+import { BASE_URL } from '../../../src/config/api'; // <-- Corrected path again
 
 export default function NewInspectionScreen() {
     const { user } = useUser();
+    const { getToken } = useAuth(); // <-- Get getToken function
     const userState = user?.publicMetadata?.state as string || 'N/A'; // Get user state
 
     // State Variables
@@ -213,31 +216,48 @@ export default function NewInspectionScreen() {
             setRecording(null); // Clear the recording object from state
 
             if (uri) {
-                 // Get Base64 data
+                // Get Base64 data - Platform specific handling
                 try {
-                    const base64Audio = await FileSystem.readAsStringAsync(uri, {
-                        encoding: FileSystem.EncodingType.Base64,
-                    });
-                    console.log('Successfully got Base64 audio data.');
-                    setIsTranscribing(false);
+                    let base64Audio: string | null = null;
+                    if (Platform.OS === 'web') {
+                        // Web: Fetch the blob and use FileReader
+                        console.log('Fetching blob for web...');
+                        const response = await fetch(uri);
+                        const blob = await response.blob();
+                        base64Audio = await new Promise((resolve, reject) => {
+                           const reader = new FileReader();
+                           reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+                           reader.onerror = reject;
+                           reader.readAsDataURL(blob);
+                        });
+                         console.log('Web blob read successfully.');
+                    } else {
+                        // Native: Use FileSystem
+                        base64Audio = await FileSystem.readAsStringAsync(uri, {
+                            encoding: FileSystem.EncodingType.Base64,
+                        });
+                    }
 
-                    // *** TODO: Send base64Audio to backend /api/transcribe ***
-                    // For now, just show an alert or update description
-                    Alert.alert("Recording Complete", "Audio ready for transcription (placeholder).");
-                    // Example: setDescription(prev => prev + " [Audio Recorded]"); 
-                    // Or call backend: await transcribeAudio(base64Audio);
+                    if (base64Audio) {
+                        console.log('Successfully got Base64 audio data.');
+                        // --- Call Transcription API --- START ---
+                        await transcribeAudio(base64Audio);
+                        // --- Call Transcription API --- END ---
+                    } else {
+                        throw new Error('Failed to obtain base64 audio data.');
+                    }
 
                 } catch (readError: any) {
-                     console.error('Failed to read audio file as Base64', readError);
-                     setError(`Failed to process recording: ${readError.message}`);
-                     Alert.alert('Processing Error', `Could not process the recorded audio: ${readError.message}`);
-                     setIsTranscribing(false);
+                    console.error('Failed to read audio file as Base64', readError);
+                    setError(`Failed to process recording: ${readError.message}`);
+                    Alert.alert('Processing Error', `Could not process the recorded audio: ${readError.message}`);
+                    setIsTranscribing(false);
                 }
             } else {
-                 console.warn('Recording URI is null after stopping.');
-                 setError('Failed to get recording file path.');
-                 Alert.alert('Recording Error', 'Could not retrieve the recording file path.');
-                 setIsTranscribing(false);
+                console.warn('Recording URI is null after stopping.');
+                setError('Failed to get recording file path.');
+                Alert.alert('Recording Error', 'Could not retrieve the recording file path.');
+                setIsTranscribing(false);
             }
         } catch (err: any) {
             console.error('Failed to stop recording', err);
@@ -248,20 +268,105 @@ export default function NewInspectionScreen() {
         }
     };
 
-    const handleGenerateStatement = () => {
-        // TODO: Implement API call to backend /api/analyze-defect and /api/generate-ddid
+    // --- Transcription API Call --- 
+    const transcribeAudio = async (base64Audio: string) => {
+        setIsTranscribing(true); // Already set, but good practice
+        setError(null);
+        try {
+            const token = await getToken();
+            if (!token) {
+                throw new Error("Authentication token not available.");
+            }
+
+            console.log('Sending audio for transcription...');
+            const response = await axios.post(`${BASE_URL}/api/transcribe`, 
+                { audioBase64: base64Audio },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (response.data && response.data.transcription) {
+                console.log('Transcription successful:', response.data.transcription);
+                // Append transcription to existing description or replace?
+                // Let's append for now.
+                setDescription(prev => (prev ? prev + ' ' : '') + response.data.transcription);
+            } else {
+                throw new Error('Invalid transcription response from server.');
+            }
+
+        } catch (err: any) {
+            console.error('Transcription Error:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Failed to transcribe audio.';
+            setError(errorMessage);
+            Alert.alert('Transcription Failed', errorMessage);
+        } finally {
+            setIsTranscribing(false); // Clear loading indicator
+        }
+    };
+
+    const handleGenerateStatement = async () => {
         console.log("Generate Statement pressed");
-        if (!imageUri || !description) {
+        if (!imageBase64 || !description) {
              Alert.alert("Missing Info", "Please provide an image and description.");
              return;
         }
         setIsLoading(true);
-        // Simulate API call
-        setTimeout(() => {
-            setIsLoading(false);
-             Alert.alert("Statement Generated", "Placeholder for generated statement display.");
-             // Reset form or show modal...
-        }, 1500);
+        setError(null);
+        
+        try {
+            const token = await getToken();
+            if (!token) throw new Error("Authentication token not available.");
+
+            // --- Step 1: Analyze Defect --- 
+            console.log("Sending image/description for analysis...");
+            const analyzeResponse = await axios.post(`${BASE_URL}/api/analyze-defect`, 
+                { 
+                    imageBase64: imageBase64, 
+                    description: description, 
+                    userState: userState 
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            const analysisText = analyzeResponse.data?.analysis;
+            if (!analysisText) {
+                throw new Error('Invalid analysis response from server.');
+            }
+            console.log("Analysis received:", analysisText);
+
+            // --- Step 2: Generate Final DDID (with Direct line) & Save ---
+             console.log("Sending analysis for final DDID generation and save...");
+            const generateResponse = await axios.post(`${BASE_URL}/api/generate-ddid`, 
+                { 
+                   imageBase64: imageBase64, // Send image again (backend might need it)
+                   description: description, 
+                   userState: userState,
+                   imageUrl: imageUri, // Assuming imageUri holds the uploaded URL (or placeholder)
+                   analysisText: analysisText // Send the DDI part back
+               },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            const finalDdid = generateResponse.data?.ddid;
+            const inspectionId = generateResponse.data?.inspectionId;
+
+            if (!finalDdid || inspectionId === undefined) {
+                 throw new Error('Invalid DDID generation response from server.');
+            }
+            console.log("Final DDID generated and saved:", inspectionId);
+
+            // *** TODO: Display finalDdid in the modal ***
+            // For now, just alert
+            Alert.alert("Statement Generated", `ID: ${inspectionId}\n\n${finalDdid}`);
+            // Example: showDdidModal(finalDdid, imageUri, description);
+
+        } catch (err: any) {
+            console.error('Generate Statement Error:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Failed to generate statement.';
+            setError(errorMessage);
+            Alert.alert('Generation Failed', errorMessage);
+        } finally {
+            setIsLoading(false); 
+        }
     };
 
     const handleNewDefect = () => {
@@ -326,9 +431,9 @@ export default function NewInspectionScreen() {
 
             {/* Action Buttons */}
             <TouchableOpacity 
-                style={[styles.button, styles.generateButton, (isLoading || !imageUri || !description) && styles.buttonDisabled]} 
+                style={[styles.button, styles.generateButton, (isLoading || !imageBase64 || !description) && styles.buttonDisabled]} 
                 onPress={handleGenerateStatement}
-                disabled={isLoading || !imageUri || !description}
+                disabled={isLoading || !imageBase64 || !description}
             >
                 {isLoading ? (
                     <ActivityIndicator color="#fff" />
@@ -383,7 +488,6 @@ const styles = StyleSheet.create({
         borderColor: '#ced4da',
         borderStyle: 'dashed',
         overflow: 'hidden', // Ensure image preview respects border radius
-        transition: 'border-color 0.2s ease-in-out', // Add transition for visual feedback
     },
     imagePickerDragging: { // Style for when dragging over
          borderColor: COLORS.primary, 
