@@ -31,18 +31,22 @@ const InitialLayout = () => {
   const router = useRouter();
 
   useEffect(() => {
+    console.log("[Layout] Checking auth state:", { isLoaded, isSignedIn, segments });
     if (!isLoaded) return;
 
-    // Check if the current route segment is within the 'tabs' group
-    // Note: Expo Router normalizes segment names, removing parentheses
     const inTabsGroup = segments[0] === "tabs";
+    console.log("[Layout] In tabs group?", inTabsGroup);
 
     if (isSignedIn && !inTabsGroup) {
+      console.log("[Layout] User signed in, NOT in tabs. Redirecting to /tabs...");
       // Redirect authenticated users to the default screen of the tabs group
-      router.replace("/tabs"); // <-- Corrected path
+      router.replace("/tabs");
     } else if (!isSignedIn && inTabsGroup) {
+      console.log("[Layout] User NOT signed in, IS in tabs. Redirecting to /...");
       // Redirect unauthenticated users away from tabs
       router.replace("/");
+    } else {
+      console.log("[Layout] No redirect needed.");
     }
   }, [isSignedIn, isLoaded, segments, router]);
 
@@ -55,7 +59,7 @@ const InitialLayout = () => {
     );
   }
 
-  // Render the currently matched route
+  console.log("[Layout] Rendering Slot");
   return <Slot />;
 };
 
