@@ -43,10 +43,10 @@ const DdidModal: React.FC<DdidModalProps> = ({
     const copyToClipboard = async () => {
         try {
             // Remove markdown bold markers (**)
-            const plainText = ddidText.replace(/\*\*/g, ''); 
+            const plainText = ddidText.replace(/\*\*/g, '');
             
             await Clipboard.setStringAsync(plainText);
-            Alert.alert('Copied!', 'Statement copied to clipboard.'); // Changed "DDID report" to "Statement"
+            Alert.alert('Copied!', 'Statement copied to clipboard.');
         } catch (e) {
             Alert.alert('Error', 'Could not copy text.');
             console.error("Clipboard error:", e);

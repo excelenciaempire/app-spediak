@@ -4,7 +4,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Controller for INITIAL analysis (Outputs DDI - No Direct)
+// Controller for INITIAL PRE-DESCRIPTION analysis
 const analyzeDefectController = async (req, res) => {
   const { imageBase64, description, userState } = req.body;
 
@@ -12,45 +12,35 @@ const analyzeDefectController = async (req, res) => {
     return res.status(400).json({ message: 'Missing required fields for analysis.' });
   }
 
-  // Prompt to generate Describe, Determine, Implication ONLY
-  const analysisPrompt = `
-You are an AI assistant trained to generate standardized DDID (Describe, Determine, Implication, Determine) statements based on home inspector notes and an accompanying image. Your goal is to help clearly communicate potential defects in a property without overstating severity or causing unnecessary concern. Your language must be strictly observational and factual, avoiding any mention of building codes, compliance, or safety standards unless explicitly provided in the user notes.
-
-Format:
-
-Describe: Combine visual observations from the image and written notes to objectively describe what is present. Start directly with the observation (e.g., "Water intrusion is present..." or "The component shows signs of..."). Do NOT use introductory phrases like "The image shows..." or "Based on the image...". Be specific and avoid assumptions.
-
-Determine: Identify the specific issue or condition, based on the described observation.
-
-Implication: Explain the potential consequences of the issue in a neutral, factual, informative, and non-alarmist tone. Focus on how it may affect function, performance, or condition over time. Avoid speculative or worst-case scenario language.
-
-Determine: Restate the identified condition clearly and concisely for documentation purposes.
-
-Instructions:
-
-- Use professional, objective, precise, and concise language. Maintain a strictly neutral and non-alarmist tone throughout.
-- Absolutely DO NOT include a "Direct" section.
-- Absolutely DO NOT reference any external building codes, regulations, compliance standards, or safety standards unless such a standard was explicitly mentioned in the inspector's notes below. Describe the defect and its implications based purely on observation and function, not compliance.
-- Avoid exaggerations or speculative language entirely.
-- Use both the inspector's notes and visual information from the attached image to inform your response.
+  // Prompt to generate PRE-DESCRIPTION ONLY
+  const preDescriptionPrompt = `
+You are an AI assistant reviewing home inspection details (image + text notes).
+Your task is to generate ONLY a brief, preliminary description of the main observable subject or issue, in natural language.
+Combine visual observations from the image and written notes.
+Focus on objectively describing what is present. Be concise.
+Start directly with the observation (e.g., "Water intrusion is present under the kitchen sink..." or "The roof shingle shows signs of damage...").
+Do NOT use introductory phrases like "The image shows..." or "Based on the image...".
+Do NOT include Determine, Implication, or Direct sections.
+Do NOT reference codes or standards.
+Do NOT add extra explanations or formatting.
 
 Inspector Data:
 - Location (State): ${userState}
 - Notes: ${description}
 - Image: <attached>
 
-Generate only the DDID statement using the information provided.
+Generate ONLY the preliminary description.
 `;
 
-  console.log('[analyzeDefectController] Requesting DDI analysis from OpenAI...');
+  console.log('[analyzeDefectController] Requesting PRE-DESCRIPTION from OpenAI...');
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o', // Or a faster model if suitable for pre-description
       messages: [
          {
             role: 'user',
             content: [
-                { type: 'text', text: analysisPrompt },
+                { type: 'text', text: preDescriptionPrompt },
                 {
                   type: 'image_url',
                   image_url: {
@@ -60,92 +50,105 @@ Generate only the DDID statement using the information provided.
             ],
         },
       ],
-      max_tokens: 400, // Adjust as needed for DDI
+      max_tokens: 150, // Reduced tokens for pre-description
     });
 
-    const analysisResult = response.choices[0].message.content;
-    console.log('[analyzeDefectController] DDI analysis received from OpenAI.');
-    return res.json({ analysis: analysisResult });
+    const preDescriptionResult = response.choices[0].message.content?.trim() || 'Could not generate pre-description.';
+    console.log('[analyzeDefectController] Pre-description received from OpenAI.');
+    // Send back only the pre-description
+    return res.json({ preDescription: preDescriptionResult });
 
   } catch (error) {
     console.error('[analyzeDefectController] OpenAI Error:', error);
-    return res.status(500).json({ message: error.message || 'Failed to generate analysis.' });
+    return res.status(500).json({ message: error.message || 'Failed to generate pre-description.' });
   }
 };
 
-// Controller for FINAL DDID generation AND saving
+// Controller for FINAL DDID generation AND saving (using final description)
 const generateDdidController = async (req, res) => {
-    const { imageBase64, description, userState, imageUrl, analysisText } = req.body; // analysisText is DDI (no Direct)
+    // Expect finalDescription instead of analysisText
+    const { imageBase64, finalDescription, userState, imageUrl } = req.body; 
     const userId = req.auth.userId;
 
-    // Check required fields
-    if (!description || !userState || !userId || !imageUrl || !analysisText) {
-        return res.status(400).json({ message: 'Missing required fields (desc, state, user, image url, analysis text).' });
+    // Check required fields (finalDescription is key)
+    if (!finalDescription || !userState || !userId || !imageUrl || !imageBase64) {
+        return res.status(400).json({ message: 'Missing required fields (finalDesc, state, user, img url, img b64).' });
     }
 
-    // Prompt asks ONLY for the Direct: line
-    const finalPrompt = `
-You are an AI assistant generating ONLY the "Direct:" recommendation line for a DDID statement.
-You will be given the Describe, Determine, and Implication sections and context (inspector notes, state).
-Your task is ONLY to generate the "Direct:" line based on the provided analysis and the Recommendation Guidelines.
+    // Prompt now asks for the FULL DDID based on the final description and image
+    const finalDdidPrompt = `
+You are an AI assistant trained to generate standardized DDID (Describe, Determine, Implication, Determine, Direct) statements based on home inspector notes (final version) and an accompanying image. Your goal is to clearly communicate potential defects without overstating severity or causing unnecessary concern. Your language must be strictly observational and factual, avoiding any mention of building codes, compliance, or safety standards.
 
-**Provided DDI Analysis (No Direct):**
-${analysisText}
+Format:
 
-**Recommendation Guidelines (for Direct: section ONLY):**
-1.  **Structural Defects:** If the provided DDI analysis mentions structural components..., recommend: "Recommend engaging a licensed structural engineer..."
-2.  **New Builds/Construction:** If the original inspector notes mentioned "new build"..., recommend: "Recommend that the builder further evaluate..."
-3.  **Multiple Related Defects:** If the provided DDI analysis describes multiple distinct defects of the same trade..., recommend: "Recommend engaging a licensed [Trade Professional]..."
-4.  **Default Recommendation:** For all other defects..., recommend: "Recommend engaging a qualified licensed contractor..."
+Describe: Start directly with the main observation based on the provided final description and image (e.g., "Water intrusion is present..."). Do NOT use introductory phrases.
 
-**Original Inspector Notes (for context only, mainly for New Builds guideline):**
-${description}
+Determine: Identify the specific issue based on the description.
 
-**State (for context only):** ${userState}
+Implication: Explain potential consequences neutrally and non-alarmingly.
 
-**Instructions:**
-- Based *only* on the **Provided DDI Analysis** and the **Recommendation Guidelines**, determine the single correct recommendation.
-- Output *only* the full "Direct:" line, starting exactly with "Direct: Recommend...".
-- Do NOT include Describe, Determine, or Implication.
-- Do NOT add extra explanation or formatting.
+Determine: Restate the condition concisely.
 
-Generate ONLY the "Direct:" line now.
+Direct: Provide ONLY ONE recommendation based on the Recommendation Guidelines below.
+
+Recommendation Guidelines (for Direct: section ONLY):
+1. Structural Defects: If analysis mentions structural components, recommend: "Recommend engaging a licensed structural engineer..."
+2. New Builds/Construction: If original inspector notes mentioned "new build", recommend: "Recommend that the builder further evaluate..."
+3. Multiple Related Defects (Same Trade): Recommend: "Recommend engaging a licensed [Trade Professional]..."
+4. Default: Recommend: "Recommend engaging a qualified licensed contractor..."
+
+Instructions:
+- Generate the complete DDID statement (Describe, Determine, Implication, Determine, Direct).
+- Base the ENTIRE statement primarily on the **Final Inspector Description** and the **Image** provided below.
+- Use professional, objective, precise, neutral, and non-alarmist language.
+- Absolutely DO NOT reference building codes, regulations, compliance, or safety standards.
+- Avoid exaggerations.
+
+Inspector Data:
+- Location (State): ${userState}
+- Final Inspector Description: ${finalDescription}
+- Image: <attached>
+
+Generate the complete DDID statement now.
 `;
 
-    console.log('[generateDdidController] Requesting Direct recommendation from OpenAI...');
-    let directRecommendation = null;
+    console.log('[generateDdidController] Requesting FINAL DDID from OpenAI...');
     let finalDdidStatement = null;
     try {
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o', // Consider gpt-3.5-turbo or faster if sufficient
+            model: 'gpt-4o', 
             messages: [
                  {
                      role: 'user',
-                     content: finalPrompt // No image needed if DDI is good
+                     content: [
+                         { type: 'text', text: finalDdidPrompt },
+                         {
+                           type: 'image_url',
+                           image_url: {
+                             url: `data:image/jpeg;base64,${imageBase64}`,
+                           },
+                         },
+                     ],
                  },
              ],
-            max_tokens: 150, // Reduced tokens needed for just the Direct line
+            max_tokens: 700, // Increased tokens for full DDID + Direct
         });
 
-        directRecommendation = response.choices[0].message.content;
-        // Basic validation/cleanup of the AI response
-        if (!directRecommendation || !directRecommendation.trim().startsWith('Direct:')) {
-             console.error('[generateDdidController] OpenAI did not return a valid Direct: line. Response:', directRecommendation);
-             // Fallback or throw error?
-             directRecommendation = "Direct: Recommend engaging a qualified licensed contractor to evaluate this condition further."; // Safer fallback
-             // throw new Error('AI failed to generate a valid recommendation line.');
+        finalDdidStatement = response.choices[0].message.content?.trim();
+        
+        // Basic validation (check if response exists)
+        if (!finalDdidStatement) {
+             console.error('[generateDdidController] OpenAI did not return a valid DDID statement.');
+             throw new Error('AI failed to generate a valid DDID statement.');
         }
-        console.log('[generateDdidController] Direct recommendation received:', directRecommendation);
-
-        // Combine the provided analysis (DDI) with the generated recommendation
-        finalDdidStatement = `${analysisText.trim()}\n${directRecommendation.trim()}`;
-        console.log('[generateDdidController] Combined final DDID statement ready for saving.');
+        console.log('[generateDdidController] Final DDID statement received from OpenAI.');
 
         // --- Save Inspection to Database --- 
         const { Pool } = require('pg');
         const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
         const insertQuery = 'INSERT INTO inspections (user_id, description, ddid, image_url, state) VALUES ($1, $2, $3, $4, $5) RETURNING id';
-        const values = [userId, description, finalDdidStatement, imageUrl, userState]; // Use final combined statement
+        // Save the FINAL description used to generate the DDID
+        const values = [userId, finalDescription, finalDdidStatement, imageUrl, userState]; 
         const result = await pool.query(insertQuery, values);
         const newInspectionId = result.rows[0].id;
         console.log('[generateDdidController] Inspection saved successfully:', newInspectionId);
@@ -154,20 +157,12 @@ Generate ONLY the "Direct:" line now.
         return res.json({ ddid: finalDdidStatement, inspectionId: newInspectionId });
 
     } catch (error) {
-        // ... error handling (adjust messages if needed) ...
-         if (!directRecommendation && error.response) {
-            // OpenAI error generating Direct line
-             return res.status(502).json({ message: `OpenAI Error generating recommendation: ${error.response?.data?.message || error.message || 'Unknown error'}` });
-         } else if (directRecommendation && !error.response) {
-             // DB Save Error after generating Direct line
-            return res.status(500).json({ message: `Database Save Error: ${error.response?.data?.message || error.message || 'Unknown error'}`, ddid: finalDdidStatement, inspectionId: null });
-         } else {
-            return res.status(500).json({ message: error.message || 'Failed to generate final DDID or save inspection.' });
-         }
+        console.error('[generateDdidController] Error:', error);
+        return res.status(500).json({ message: error.message || 'Failed to generate final DDID or save inspection.' });
     }
 };
 
 module.exports = {
-    analyzeDefectController,
+    analyzeDefectController, // Export new pre-description controller
     generateDdidController
 };
