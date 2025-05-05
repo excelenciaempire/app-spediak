@@ -1,6 +1,5 @@
-import { Redirect } from 'expo-router';
- 
-// Redirect to the default tab (e.g., newInspection)
+import { Redirect } from "expo-router";
+
 export default function Index() {
-  return <Redirect href="/(tabs)/newInspection" />;
-} 
+  return <Redirect href="/tabs/newInspection" />;
+}
