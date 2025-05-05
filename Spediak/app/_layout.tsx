@@ -33,16 +33,16 @@ const InitialLayout = () => {
   useEffect(() => {
     if (!isLoaded) return;
 
-    const inTabsGroup = segments[0] === "(tabs)";
+    // Check if the current route segment is within the 'tabs' group
+    // Note: Expo Router normalizes segment names, removing parentheses
+    const inTabsGroup = segments[0] === "tabs";
 
     if (isSignedIn && !inTabsGroup) {
-      // Redirect authenticated users to the main app tabs
-      router.replace("/(tabs)/newInspection"); // Or your default tab
+      // Redirect authenticated users to the default screen of the tabs group
+      router.replace("/tabs"); // <-- Corrected path
     } else if (!isSignedIn && inTabsGroup) {
-      // Redirect unauthenticated users away from tabs (to login?)
-      // Assuming you have a login screen at root or in an (auth) group
-      // Adjust the path as needed
-      router.replace("/"); // Or replace with your login route if it exists
+      // Redirect unauthenticated users away from tabs
+      router.replace("/");
     }
   }, [isSignedIn, isLoaded, segments, router]);
 
