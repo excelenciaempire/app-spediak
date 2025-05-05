@@ -36,14 +36,17 @@ const DdidModal: React.FC<DdidModalProps> = ({
     description,
     userName,
     userEmail
-}) => {
+}: DdidModalProps) => {
 
     console.log(`[DdidModal] Received imageUrl: ${imageUrl}`);
 
     const copyToClipboard = async () => {
         try {
-            await Clipboard.setStringAsync(ddidText);
-            Alert.alert('Copied!', 'DDID report copied to clipboard.');
+            // Remove markdown bold markers (**)
+            const plainText = ddidText.replace(/\*\*/g, ''); 
+            
+            await Clipboard.setStringAsync(plainText);
+            Alert.alert('Copied!', 'Statement copied to clipboard.'); // Changed "DDID report" to "Statement"
         } catch (e) {
             Alert.alert('Error', 'Could not copy text.');
             console.error("Clipboard error:", e);

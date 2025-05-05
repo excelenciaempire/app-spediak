@@ -27,14 +27,21 @@ module.exports = {
       "output": "static"
     },
     "extra": {
-      "clerkPublishableKey": process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
+      "clerkPublishableKey": "pk_test_cHJldHR5LWNyYXdkYWQtMTAuY2xlcmsuYWNjb3VudHMuZGV2JA",
       "apiUrl": process.env.EXPO_PUBLIC_API_URL,
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "733c67f6-d35b-434e-bd51-1b9e723e2135"
     }
     },
     "plugins": [
-      "expo-router"
-    ]
+      "expo-router",
+      [
+        "expo-font",
+        {
+          "fonts": ["./assets/fonts/SpaceMono-Regular.ttf"]
+        }
+      ]
+    ],
+    "scheme": "spediak"
   }
 };

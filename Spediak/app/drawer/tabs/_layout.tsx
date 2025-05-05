@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Home, History, User, ShieldCheck /* Or appropriate icons */ } from 'lucide-react-native';
-import { COLORS } from '../../src/styles/colors'; // Adjust path if needed
+import { COLORS } from '../../../src/styles/colors'; // Adjust path if needed
 import { useAuth } from '@clerk/clerk-expo';
 
 // Define the type for the route prop in screenOptions
@@ -47,20 +47,20 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }: { color: string; size: number }) => <Home color={color} size={size} />,
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen // Remove this explicit definition - relies on app/tabs/inspectionHistory.tsx file
         name="inspectionHistory"
         options={{
           title: 'History',
           tabBarIcon: ({ color, size }: { color: string; size: number }) => <History color={color} size={size} />,
         }}
-      />
-       <Tabs.Screen
+      /> */}
+       {/* <Tabs.Screen // Remove this explicit definition - relies on app/tabs/profile.tsx file
         name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }: { color: string; size: number }) => <User color={color} size={size} />,
         }}
-      />
+      /> */}
        {/* Conditionally render Admin tab - ensure file exists at adminDashboard.tsx */}
       {isAdmin && (
           <Tabs.Screen
